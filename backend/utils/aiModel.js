@@ -71,23 +71,47 @@ async function AiCompareAddresses(address1, address2) {
     }
 }
 
-async function AiFindBestUnitMatch(unitInfoFromDoc, officialUnitNumbers) {
+async function AiFindBestUnitMatch(unitInfoFromDoc, officialUnits) {
     console.log(`🤖 Gemini Flash: Finding best unit match for: "${unitInfoFromDoc}"`);
-    const prompt = `I have text from a rental contract: "${unitInfoFromDoc}". I also have a list of official unit numbers: ${JSON.stringify(officialUnitNumbers)}. Which single unit number from the list is the most likely match for the text? Consider typos and extra words. Respond with ONLY the best-matching unit number from the list. If no confident match, respond with "none".`;
+
+    // Create a simplified list for the AI prompt
+    const unitListForPrompt = officialUnits.map(u => ({
+        unitId: u._id.toString(),
+        unitNumber: u.unitNumber,
+        address: `${u.address.streetAddress}, ${u.address.district}, ${u.address.province}`
+    }));
+
+    const prompt = `
+        You are an expert at matching property units in Thailand.
+        I have a text snippet describing a property unit, extracted from a rental contract: "${unitInfoFromDoc}"
+        
+        Here is a JSON array of the landlord's official properties from their portfolio:
+        ${JSON.stringify(unitListForPrompt)}
+        
+        Your task is to identify which single property from the JSON array is the most likely match for the text snippet. Consider the unit number (e.g., '279/19'), the building name (e.g., 'UNIO' or 'Ideo Mobi'), and other address details.
+        
+        Respond with ONLY the 'unitId' string of the single best match.
+        If you are not confident in any match, respond with the word "none".
+    `;
 
     try {
         const result = await flashModel.generateContent(prompt);
-        let bestMatch = result.response.text().trim();
+        let bestMatchId = result.response.text().trim();
         
-        if (bestMatch.toLowerCase() === 'none' || !officialUnitNumbers.includes(bestMatch)) {
-            console.log("📄 Gemini could not find a confident match.");
+        // Validate that the AI returned a valid ID from the list
+        const isValidId = officialUnits.some(u => u._id.toString() === bestMatchId);
+        
+        if (bestMatchId.toLowerCase() === 'none' || !isValidId) {
+            console.log("📄 AI could not find a confident match.");
             return null;
         }
-        console.log(`📄 Gemini found best match: "${bestMatch}"`);
-        return bestMatch;
+
+        console.log(`📄 AI found best match (unitId): "${bestMatchId}"`);
+        return bestMatchId; // Return the ID of the matched unit
+
     } catch (error) {
         console.error("❌ Error during Gemini unit matching:", error);
-        return null;
+        return null; // Default to no match on error
     }
 }
 

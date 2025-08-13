@@ -75,6 +75,7 @@ export default function Header() {
           <NavLink to="/product" className="text-sm font-medium text-text-primary hover:text-hover-blue">Product</NavLink>
           <NavLink to="/blog" className="text-sm font-medium text-text-primary hover:text-hover-blue">Blog</NavLink>
           <NavLink to="/about" className="text-sm font-medium text-text-primary hover:text-hover-blue">About Us</NavLink>
+           <NavLink to="/contact" className="text-sm font-medium text-text-primary hover:text-hover-blue">Contact Us</NavLink>
         </div>
 
         {/* Desktop Right Side */}
@@ -114,6 +115,7 @@ export default function Header() {
           <NavLink to="/product" onClick={() => setIsOpen(false)} className="block text-text-primary hover:text-hover-blue">Product</NavLink>
           <NavLink to="/blog" onClick={() => setIsOpen(false)} className="block text-text-primary hover:text-hover-blue">Blog</NavLink>
           <NavLink to="/about" onClick={() => setIsOpen(false)} className="block text-text-primary hover:text-hover-blue">About Us</NavLink>
+          <NavLink to="/contact" onClick={() => setIsOpen(false)} className="block text-text-primary hover:text-hover-blue">Contact Us</NavLink>
           <hr className="border-gray-300" />
 
           {isAuthenticated ? (

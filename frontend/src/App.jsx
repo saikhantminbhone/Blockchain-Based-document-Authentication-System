@@ -16,6 +16,7 @@ import VerificationPage from './pages/VerificationPage.jsx';
 import ProductPage from './pages/ProductPage.jsx';
 import AboutPage from './pages/AboutPage.jsx';
 import BlogPage from './pages/BlogPage.jsx';
+import ContactPage from './pages/ContactPage.jsx';
 
 
 function App() {
@@ -33,6 +34,7 @@ function App() {
               <Route path="/product" element={<ProductPage />} />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/blog" element={<BlogPage />} />
+              <Route path="/contact" element={<ContactPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/verify/:docHash" element={<VerificationPage />} />

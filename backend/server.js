@@ -487,12 +487,14 @@ app.post('/api/contracts/initiate', upload.single('contract'), async (req, res) 
 
             let matchedUnit = null;
             if (officialUnitNumbers.length > 0) {
+                console.log(details.unitInfo)
                 const bestMatchUnitNumber = await AiFindBestUnitMatch(details.unitInfo, officialUnitNumbers);
 
                 if (bestMatchUnitNumber) {
                     matchedUnit = landlordUnits.find(u => u.unitNumber === bestMatchUnitNumber);
                 }
             }
+            console.log(matchUnit)
             if (matchedUnit) {
                 pendingContract.unitId = matchedUnit._id;
                 pendingContract.unitStatus = 'matched';
