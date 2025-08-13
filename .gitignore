@@ -1,7 +1,7 @@
 node_modules
 *.env
 
-./deploy.yml
+deploy.yml
 
 # Editor directories and files
 .vscode/*
