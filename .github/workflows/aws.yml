@@ -24,7 +24,7 @@ jobs:
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.AWS_EC2_HOST }} 
-          username: ec2-user 
+          username: blocklease-user 
           key: ${{ secrets.AWS_EC2_SSH_PRIVATE_KEY }}
           script: |
             # Navigate to the project directory
