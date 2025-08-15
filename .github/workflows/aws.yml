@@ -1,0 +1,57 @@
+name: Deploy to AWS EC2
+
+on:
+  push:
+    branches:
+      - main # This workflow runs on every push to the main branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: SSH and Deploy
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }} 
+          username: ubuntu 
+          key: ${{ secrets.AWS_EC2_SSH_PRIVATE_KEY }}
+          script: |
+            # Navigate to the project directory
+            cd /home/ec2-user/Blockchain-Based-document-Authentication-System
+            
+            # Pull the latest changes from the main branch
+            git pull origin main
+            
+            # Install backend dependencies
+            cd backend
+            npm install
+
+            # Install blockchain dependencies
+            cd blockchain
+            npm install
+            npx hardhat compile
+            
+            # Restart the application with PM2
+            # This ensures zero-downtime deployment
+            pm2 restart server.js || pm2 start server.js --name "block-lease-backend"
+            
+            # Navigate to the frontend directory
+            cd ../frontend
+            npm install
+            
+            # Build the frontend for production
+            npm run build
+            
+            # PM2 can also serve the static frontend build
+            pm2 restart frontend || pm2 serve dist 3000 --name "block-lease-frontend" --spa
