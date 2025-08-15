@@ -54,4 +54,4 @@ jobs:
             npm run build
             
             # PM2 can also serve the static frontend build
-            pm2 restart frontend || pm2 serve dist 3000 --name "block-lease-frontend" --spa
+            pm2 restart block-lease-frontend || pm2 serve dist 3000 --name "block-lease-frontend" --spa
