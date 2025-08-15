@@ -1,10 +1,13 @@
 // src/pages/VerifyEmailPage.jsx
 
-import React, { useState, useEffect, useRef } from 'react'; // 1. Import useRef
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
-import { verifyEmailToken } from '../services/api';
+import { verifyEmailToken, resendVerificationEmail } from '../services/api';
+import { showSuccessToast, showErrorToast } from '../components/Notifications';
 import Loader from '../components/Loader';
+import Button from '../components/ui/Button';
+import Card from '../components/ui/Card';
 import { CheckCircle2, XCircle } from 'lucide-react';
 
 export default function VerifyEmailPage() {
@@ -13,21 +16,23 @@ export default function VerifyEmailPage() {
     const { login } = useAuth();
     const [status, setStatus] = useState('verifying');
     const [errorMessage, setErrorMessage] = useState('');
-    
-    // 2. Create a ref to track if verification has been attempted
+    const [resendEmail, setResendEmail] = useState('');
+    const [isResending, setIsResending] = useState(false);
     const verificationAttempted = useRef(false);
 
     useEffect(() => {
-        // 3. Add a check to ensure this effect runs only once
         if (token && !verificationAttempted.current) {
-            // Immediately mark that we are attempting verification
             verificationAttempted.current = true;
-
             verifyEmailToken(token)
                 .then(response => {
-                    login(response.token, response.landlord);
-                    setStatus('success');
-                    setTimeout(() => navigate('/kyc'), 2000);
+                    if (response.token && response.landlord) {
+                        login(response.token, response.landlord);
+                        setStatus('success');
+                        setTimeout(() => navigate('/kyc'), 2000);
+                    } else {
+                        setStatus('info');
+                        setErrorMessage(response.message);
+                    }
                 })
                 .catch(err => {
                     setErrorMessage(err.response?.data?.message || 'Verification failed.');
@@ -36,18 +41,37 @@ export default function VerifyEmailPage() {
         }
     }, [token, login, navigate]);
 
+    const handleResend = async (e) => {
+        e.preventDefault();
+        setIsResending(true);
+        try {
+            const result = await resendVerificationEmail(resendEmail);
+            showSuccessToast(result.message);
+            setErrorMessage("A new link has been sent. Please check your new email and close this tab.");
+        } catch (err) {
+            showErrorToast(err.response?.data?.message || 'Failed to send new link.');
+        } finally {
+            setIsResending(false);
+        }
+    };
+
     if (status === 'verifying') {
         return <div className="flex flex-col items-center justify-center h-[80vh]"><Loader /><p className="mt-4">Verifying your email...</p></div>;
     }
 
-    if (status === 'error') {
+    if (status === 'error' || status === 'info') {
         return (
-            <div className="text-center p-8 max-w-lg mx-auto">
+            <Card className="text-center p-8 max-w-lg mx-auto">
                 <XCircle className="w-16 h-16 mx-auto text-error mb-4" />
                 <h1 className="text-2xl font-bold text-error">Verification Failed</h1>
                 <p className="text-text-secondary mt-2">{errorMessage}</p>
-                <Link to="/register" className="text-primary hover:underline mt-6 inline-block">Try registering again</Link>
-            </div>
+                
+                <form onSubmit={handleResend} className="mt-6 space-y-3">
+                    <p className="text-sm text-text-secondary">Your link may have expired. Enter your email to receive a new one.</p>
+                    <input type="email" placeholder="Enter your registration email" value={resendEmail} onChange={(e) => setResendEmail(e.target.value)} required className="w-full px-4 py-2 border rounded-md" />
+                    <Button type="submit" isLoading={isResending}>Resend Verification Email</Button>
+                </form>
+            </Card>
         );
     }
 

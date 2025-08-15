@@ -111,6 +111,11 @@ export const verifyEmailToken = async (token) => {
     return data;
 };
 
+export const resendVerificationEmail = async (email) => {
+    const { data } = await api.post('/resend-verification', { email });
+    return data;
+};
+
 
 // --- UTILITY ---
 export const getPresignedUrl = async (key) => {

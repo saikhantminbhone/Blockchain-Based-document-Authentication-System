@@ -211,19 +211,28 @@ app.post('/api/register-landlord', async (req, res) => {
     } catch (error) { res.status(500).json({ message: 'Server error during registration.' }); }
 });
 
+
+
 app.post('/api/verify-email', async (req, res) => {
     try {
         const { token } = req.body;
         if (!token) return res.status(400).json({ message: "Verification token is missing." });
+
         const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-        console.log(hashedToken)
         const landlord = await getDB().collection('landlords').findOne({
             emailVerificationToken: hashedToken,
-            emailVerificationExpires: { $gt: new Date() }
         });
 
         if (!landlord) {
-            return res.status(400).json({ message: "Token is invalid or has expired. Please try registering again." });
+            return res.status(400).json({ message: "This verification link is invalid." });
+        }
+        if (landlord.emailStatus === 'verified') {
+            return res.status(200).json({ 
+                message: "This email address has already been verified. Please log in." 
+            });
+        }
+        if (new Date() > landlord.emailVerificationExpires) {
+            return res.status(400).json({ message: "This verification link has expired. Please request a new one." });
         }
         await getDB().collection('landlords').updateOne(
             { _id: landlord._id },
@@ -242,7 +251,69 @@ app.post('/api/verify-email', async (req, res) => {
             token: appToken,
             landlord: { id: landlord._id, name: landlord.name, kycStatus: landlord.kycStatus }
         });
-    } catch (error) { res.status(500).json({ message: 'Server error during email verification.' }); }
+
+    } catch (error) { 
+        console.error("Email Verification Error:", error);
+        res.status(500).json({ message: 'Server error during email verification.' }); 
+    }
+});
+
+app.post('/api/resend-verification', async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ message: "Email is required." });
+
+        const landlord = await getDB().collection('landlords').findOne({ email: email.toLowerCase() });
+        if (!landlord) return res.status(404).json({ message: "No account found with that email address." });
+
+        if (landlord.emailStatus === 'verified') {
+            return res.status(200).json({ message: "This email address has already been verified. You can log in." });
+        }
+
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+        const emailVerificationToken = crypto.createHash('sha256').update(verificationToken).digest('hex');
+        const emailVerificationExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+        await getDB().collection('landlords').updateOne(
+            { _id: landlord._id },
+            { $set: { emailVerificationToken, emailVerificationExpires } }
+        );
+        
+        const verificationUrl = `https://blocklease.site/verify-email/${verificationToken}`;
+        const subject = 'Your New Verification Link for Block Lease';
+        const emailHtml = `
+            <!DOCTYPE html><html><head><style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; background-color: #F9FAFB; }
+                .container { max-width: 600px; margin: 40px auto; background-color: #FFFFFF; padding: 40px; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+                .header { text-align: center; padding-bottom: 20px; }
+                .header img { height: 50px; }
+                .content h1 { color: #111827; }
+                .content p { color: #6B7280; line-height: 1.6; }
+                .button-container { text-align: center; margin: 30px 0; }
+                .button { display: inline-block; padding: 14px 28px; background-color: #1E3A8A; color: #ffffff !important; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; }
+                .footer { text-align: center; padding-top: 20px; border-top: 1px solid #E5E7EB; font-size: 12px; color: #9CA3AF; }
+            </style></head><body>
+                <div class="container">
+                    <div class="header"><img src="https://blocklease.site/assests/logo.png" alt="Block Lease Logo"></div>
+                    <div class="content">
+                        <h1>New Verification Link</h1>
+                        <p>Hello ${landlord.name},</p>
+                        <p>As requested, here is a new link to verify your email address. Please click the button below to activate your account. This link is valid for 15 minutes.</p>
+                        <div class="button-container"><a href="${verificationUrl}" class="button">Verify Email Address</a></div>
+                        <p>If you did not request this, you can safely ignore this email.</p>
+                    </div>
+                    <div class="footer"><p>© ${new Date().getFullYear()} Block Lease™. All Rights Reserved.</p></div>
+                </div>
+            </body></html>
+        `;
+
+        await sendEmail({ to: landlord.email, subject, html: emailHtml });
+
+        res.status(200).json({ message: "A new verification email has been sent. Please check your inbox." });
+
+    } catch (error) {
+        res.status(500).json({ message: 'Server error while resending verification email.' });
+    }
 });
 
 app.post('/api/auth/google', async (req, res) => {
@@ -306,6 +377,12 @@ app.post('/api/login-landlord', async (req, res) => {
         const { email, password } = req.body;
         const lowerCaseEmail = email.toLowerCase();
         const landlord = await getDB().collection('landlords').findOne({ email: lowerCaseEmail });
+        if (landlord.emailStatus === 'unverified') {
+        return res.status(403).json({ 
+            message: "Your email is not verified. Please check your inbox.",
+            errorCode: 'EMAIL_NOT_VERIFIED' // Special code for the frontend
+            });
+        }
         if (!landlord) return res.status(401).json({ message: 'Invalid credentials.' });
         const isMatch = await bcrypt.compare(password, landlord.password);
         if (!isMatch) return res.status(401).json({ message: 'Invalid credentials.' });
@@ -378,10 +455,6 @@ app.post('/api/units', authMiddleware, upload.fields([
         if (!titleDeedFile || !utilityBillFile) {
             return res.status(400).json({ message: "Both a Title Deed and a recent Utility Bill are required." });
         }
-        // const deedauthenticityScore = await AiCheckDocumentAuthenticity(titleDeedFile.buffer, titleDeedFile.mimetype);
-        // if (deedauthenticityScore < 85) {
-        //     return res.status(400).json({ message: `Title Deed Document authenticity score is too low (${deedauthenticityScore}%).` });
-        // }
 
        const [deedData, billData] = await Promise.all([
             AiExtractDeedData(titleDeedFile.buffer, titleDeedFile.mimetype),
