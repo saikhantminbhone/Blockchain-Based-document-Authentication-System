@@ -125,7 +125,7 @@ Follow these instructions to set up and run the project locally.
 * Google Cloud Console Project (for OAuth Client ID)
 * Veriff Account (Free Trial)
 * Google AI Studio Account (for Gemini API Key)
-* SendGrid Account (for email)
+* SendGrid Account (for email) 
 
 ### Backend Setup
 
