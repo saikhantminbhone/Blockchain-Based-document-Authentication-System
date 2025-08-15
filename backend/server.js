@@ -163,7 +163,7 @@ app.post('/api/register-landlord', async (req, res) => {
             createdAt: new Date(),
         };
         const result = await getDB().collection('landlords').insertOne(newLandlord);
-        const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
+        const verificationUrl = `https://blocklease.site/verify-email/${verificationToken}`;
         const subject = 'Verify Your Email Address for Block Lease';
         const emailHtml = `
             <!DOCTYPE html>
@@ -185,7 +185,7 @@ app.post('/api/register-landlord', async (req, res) => {
             <body>
                 <div class="container">
                     <div class="header">
-                        <img src="${process.env.FRONTEND_URL}/assests/logo.png" alt="Block Lease Logo">
+                        <img src="https://blocklease.site/assests/logo.png" alt="Block Lease Logo">
                     </div>
                     <div class="content">
                         <h1>One Last Step...</h1>
@@ -653,7 +653,7 @@ app.post('/api/approve-contract', authMiddleware, async (req, res) => {
         try {
             const tenantEmail = approvedContract.tenantEmail;
             if (tenantEmail) {
-                const shareUrl = `${process.env.FRONTEND_URL}/verify/${correctedDocHash}`;
+                const shareUrl = `https://blocklease.site/verify/${correctedDocHash}`;
                 const qrCodeDataUrl = await QRCode.toDataURL(shareUrl);
                 const subject = 'Your Rental Agreement has been Verified on the Blockchain!';
 
@@ -681,7 +681,7 @@ app.post('/api/approve-contract', authMiddleware, async (req, res) => {
                     <body>
                         <div class="container">
                             <div class="header">
-                                <img src="${process.env.FRONTEND_URL}/assests/logo.png" alt="Block Lease Logo">
+                                <img src="https://blocklease.site/assests/logo.png" alt="Block Lease Logo">
                                 <h2>Block Lease</h2>
                             </div>
                             <div class="content">
@@ -823,7 +823,7 @@ app.post('/api/invitations/send', async (req, res) => {
         const pendingContract = await getDB().collection('pending_contracts').findOne({ docHash });
         if (!pendingContract) return res.status(404).json({ message: "No pending contract found for that document hash." });
         const subject = 'You Have a New Document to Approve';
-        const loginUrl = `${process.env.FRONTEND_URL}/login`;
+        const loginUrl = `https://blocklease.site/login`;
 
         const emailHtml = `
             <!DOCTYPE html>
@@ -846,7 +846,7 @@ app.post('/api/invitations/send', async (req, res) => {
             <body>
                 <div class="container">
                     <div class="header">
-                        <img src="${process.env.FRONTEND_URL}/assests/logo.png" alt="Block Lease Logo">
+                        <img src="https://blocklease.site/assests/logo.png" alt="Block Lease Logo">
                         <h2>Block Lease</h2>
                     </div>
                     <div class="content">
