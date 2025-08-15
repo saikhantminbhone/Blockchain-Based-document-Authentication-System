@@ -5,13 +5,6 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import Loader from './Loader';
 
-/**
- * This component now wraps around another component (its 'children').
- * It accepts a 'kycStatusRequired' prop to apply specific rules.
- * @param {object} props
- * @param {React.ReactNode} props.children - The page component to render (e.g., <KycPage />).
- * @param {string} [props.kycStatusRequired] - Optional status ('pending' or 'approved').
- */
 const ProtectedRoute = ({ children, kycStatusRequired }) => {
   const { user, isAuthenticated, isLoading } = useAuth();
 
@@ -40,7 +33,6 @@ const ProtectedRoute = ({ children, kycStatusRequired }) => {
     return <Navigate to={redirectTo} replace />;
   }
 
-  // 4. If all checks pass, render the child component
   return children;
 };
 

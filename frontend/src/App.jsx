@@ -17,6 +17,7 @@ import ProductPage from './pages/ProductPage.jsx';
 import AboutPage from './pages/AboutPage.jsx';
 import BlogPage from './pages/BlogPage.jsx';
 import ContactPage from './pages/ContactPage.jsx';
+import VerifyEmailPage from './pages/VerifyEmailPage.jsx';
 
 
 function App() {
@@ -38,6 +39,8 @@ function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/verify/:docHash" element={<VerificationPage />} />
+              <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
+
               
               {/* --- Protected Routes --- */}
               <Route 

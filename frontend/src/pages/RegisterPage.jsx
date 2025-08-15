@@ -13,6 +13,7 @@ export default function RegisterPage() {
     const [formData, setFormData] = useState({ name: '', email: '', password: '', phone: '' });
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [view, setView] = useState('form');
 
     const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
@@ -21,11 +22,8 @@ export default function RegisterPage() {
         setError('');
         setIsLoading(true);
         try {
-            const { name, email, password, phone } = formData;
-            const { token, landlord } = await registerLandlord(name, email, password, phone);
-            login(token, landlord);
-            showSuccessToast('Account created! Redirecting to verification...');
-            navigate('/kyc');
+            await registerLandlord(formData.name, formData.email, formData.password, formData.phone);
+            setView('check_email');
         } catch (err) {
             setError(err.response?.data?.message || 'Registration failed.');
             showErrorToast(err.response?.data?.message);
@@ -48,6 +46,16 @@ export default function RegisterPage() {
             setIsLoading(false);
         }
     };
+
+
+        if (view === 'check_email') {
+        return (
+            <div className="text-center p-8 max-w-md mx-auto bg-card rounded-xl shadow-lg">
+                <h2 className="text-2xl font-bold text-success">Registration Successful!</h2>
+                <p className="mt-4 text-text-secondary">We've sent a verification link to **{formData.email}**. Please check your inbox and click the link to activate your account.</p>
+            </div>
+        );
+    }
 
     return (
         <div className="flex items-center justify-center h-full pt-10">

@@ -1,6 +1,5 @@
-// src/contexts/AuthContext.jsx (Corrected Full Code)
 
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { api, setAuthToken, getMyLandlordProfile } from '../services/api';
 
 const AuthContext = createContext(undefined);
@@ -9,7 +8,6 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token'));
   
-  // --- The Fix: Add an explicit isAuthenticated state ---
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   
   const [isLoading, setIsLoading] = useState(true);
@@ -22,15 +20,14 @@ export const AuthProvider = ({ children }) => {
         try {
           const userData = await getMyLandlordProfile();
           setUser(userData.landlord);
-          setIsAuthenticated(true); // Set authenticated to true on successful load
+          setIsAuthenticated(true); 
         } catch (error) {
           console.error("Token invalid, logging out:", error);
-          // Clear everything on failure
           localStorage.removeItem('token');
           setAuthToken(null);
           setUser(null);
           setToken(null);
-          setIsAuthenticated(false); // Explicitly set to false
+          setIsAuthenticated(false); 
         }
       }
       setIsLoading(false);
@@ -38,22 +35,19 @@ export const AuthProvider = ({ children }) => {
     loadUser();
   }, []);
 
-const login = (newToken, userData) => {
-    localStorage.setItem('token', newToken);
-    setToken(newToken);
-    setUser(userData);
-    setAuthToken(newToken);
-    setIsAuthenticated(true);
-   
-};
+    const login = useCallback((token, userData) => {
+        localStorage.setItem('token', token);
+        setAuthToken(token);
+        setUser(userData);
+        setIsAuthenticated(true);
+    }, []);
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
-    setUser(null);
-    setAuthToken(null);
-    setIsAuthenticated(false); // --- IMPORTANT: Set this on logout ---
-  };
+    const logout = useCallback(() => {
+        localStorage.removeItem('token');
+        setAuthToken(null);
+        setUser(null);
+        setIsAuthenticated(false);
+    }, []);
 
   return (
     <AuthContext.Provider value={{ user, token, isAuthenticated, isLoading, login, logout }}>

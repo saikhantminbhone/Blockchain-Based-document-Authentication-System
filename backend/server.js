@@ -148,16 +148,101 @@ app.post('/api/register-landlord', async (req, res) => {
         }
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
-        const newLandlord = { name, email: lowerCaseEmail, password: hashedPassword, phone: phone || '', kycStatus: 'pending', createdAt: new Date() };
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+        const emailVerificationToken = crypto.createHash('sha256').update(verificationToken).digest('hex');
+        const emailVerificationExpires = new Date(Date.now() + 155 * 60 * 1000);
+               const newLandlord = {
+            name,
+            email: lowerCaseEmail,
+            password: hashedPassword,
+            phone: phone || '',
+            kycStatus: 'pending',
+            emailStatus: 'unverified',
+            emailVerificationToken, 
+            emailVerificationExpires,
+            createdAt: new Date(),
+        };
         const result = await getDB().collection('landlords').insertOne(newLandlord);
-        const payload = { landlordId: result.insertedId.toString(), email: newLandlord.email, name: newLandlord.name };
-        const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '8h' });
+        const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
+        const subject = 'Verify Your Email Address for Block Lease';
+        const emailHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; background-color: #F9FAFB; }
+                    .container { max-width: 600px; margin: 40px auto; background-color: #FFFFFF; padding: 40px; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+                    .header { text-align: center; padding-bottom: 20px; }
+                    .header img { height: 50px; }
+                    .content h1 { color: #111827; font-size: 24px; } /* text-text-primary */
+                    .content p { color: #6B7280; line-height: 1.6; } /* text-text-secondary */
+                    .button-container { text-align: center; margin: 30px 0; }
+                    .button { display: inline-block; padding: 14px 28px; background-color: #1E3A8A; color: #ffffff !important; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; } /* bg-primary */
+                    .link { font-size: 12px; color: #6B7280; text-align: center; word-break: break-all; }
+                    .footer { text-align: center; padding-top: 20px; border-top: 1px solid #E5E7EB; font-size: 12px; color: #9CA3AF; } /* text-text-muted */
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <img src="${process.env.FRONTEND_URL}/assests/logo.png" alt="Block Lease Logo">
+                    </div>
+                    <div class="content">
+                        <h1>One Last Step...</h1>
+                        <p>Hello ${name},</p>
+                        <p>Thank you for registering with Block Lease. Please click the button below to verify your email address and activate your account. This link is valid for 15 minutes.</p>
+                        <div class="button-container">
+                            <a href="${verificationUrl}" class="button">Verify Email Address</a>
+                        </div>
+                        <p class="link">If you're having trouble, copy and paste this URL into your browser:<br/> <a href="${verificationUrl}" style="color: #3B82F6;">${verificationUrl}</a></p>
+                        <p>If you did not create this account, you can safely ignore this email.</p>
+                    </div>
+                    <div class="footer">
+                        <p>© ${new Date().getFullYear()} Block Lease™. All Rights Reserved.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+        await sendEmail({ to: newLandlord.email, subject, html: emailHtml });
         res.status(201).json({
-            message: 'Registration successful! Please complete identity verification.',
-            token,
-            landlord: { id: result.insertedId, name: newLandlord.name, kycStatus: 'pending' }
+            message: 'Registration successful! Please check your email to verify your account.'
         });
     } catch (error) { res.status(500).json({ message: 'Server error during registration.' }); }
+});
+
+app.post('/api/verify-email', async (req, res) => {
+    try {
+        const { token } = req.body;
+        if (!token) return res.status(400).json({ message: "Verification token is missing." });
+        const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+        console.log(hashedToken)
+        const landlord = await getDB().collection('landlords').findOne({
+            emailVerificationToken: hashedToken,
+            emailVerificationExpires: { $gt: new Date() }
+        });
+
+        if (!landlord) {
+            return res.status(400).json({ message: "Token is invalid or has expired. Please try registering again." });
+        }
+        await getDB().collection('landlords').updateOne(
+            { _id: landlord._id },
+            { $set: {
+                emailStatus: 'verified',
+                emailVerificationToken: undefined,
+                emailVerificationExpires: undefined,
+            }}
+        );
+        
+        const payload = { landlordId: landlord._id.toString(), email: landlord.email, name: landlord.name };
+        const appToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '8h' });
+        
+        res.status(200).json({
+            message: 'Email verified successfully!',
+            token: appToken,
+            landlord: { id: landlord._id, name: landlord.name, kycStatus: landlord.kycStatus }
+        });
+    } catch (error) { res.status(500).json({ message: 'Server error during email verification.' }); }
 });
 
 app.post('/api/auth/google', async (req, res) => {
@@ -222,9 +307,6 @@ app.post('/api/login-landlord', async (req, res) => {
         const lowerCaseEmail = email.toLowerCase();
         const landlord = await getDB().collection('landlords').findOne({ email: lowerCaseEmail });
         if (!landlord) return res.status(401).json({ message: 'Invalid credentials.' });
-        if (landlord.kycStatus !== 'approved') {
-            return res.status(403).json({ message: `Account not active. KYC status: ${landlord.kycStatus}.`, kycStatus: landlord.kycStatus });
-        }
         const isMatch = await bcrypt.compare(password, landlord.password);
         if (!isMatch) return res.status(401).json({ message: 'Invalid credentials.' });
         const payload = { landlordId: landlord._id.toString(), email: landlord.email, name: landlord.name };
@@ -764,7 +846,7 @@ app.post('/api/invitations/send', async (req, res) => {
             <body>
                 <div class="container">
                     <div class="header">
-                        <img src="YOUR_LOGO_URL_HERE" alt="Block Lease Logo">
+                        <img src="${process.env.FRONTEND_URL}/assests/logo.png" alt="Block Lease Logo">
                         <h2>Block Lease</h2>
                     </div>
                     <div class="content">

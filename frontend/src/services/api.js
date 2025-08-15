@@ -2,16 +2,10 @@
 
 import axios from 'axios';
 
-// Create an Axios instance with the base URL of your backend.
 export const api = axios.create({
   baseURL: import.meta.env.VITE_BACKEND_API_URL, 
 });
 
-/**
- * Sets the JWT token in the default headers for all subsequent API requests.
- * This is called after a user logs in or registers successfully.
- * @param {string | null} token The JWT token from the backend, or null to clear it.
- */
 export const setAuthToken = (token) => {
   if (token) {
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
@@ -48,8 +42,6 @@ export const getLandlordDashboard = async () => {
 
 // --- VERIFF KYC & DOCUMENT VERIFICATION ---
 export const createVeriffSession = async (type, payload = {}) => {
-    // type is 'kyc' for personal identity or 'deed' for a title deed.
-    // payload would be { unitId: '...' } for a deed verification.
     const { data } = await api.post('/veriff/create-session', { type, payload });
     return data; // Returns { message, sessionUrl }
 };
@@ -103,7 +95,6 @@ export const restoreUnit = async (unitId) => {
 };
 
 
-// --- NEW FUNCTION TO BE ADDED ---
 export const approveAndCreateUnit = async (docHash) => {
     const { data } = await api.post('/approve-and-create-unit', { docHash });
     console.log(data)
@@ -112,6 +103,11 @@ export const approveAndCreateUnit = async (docHash) => {
 
 export const getPublicVerificationData = async (docHash) => {
     const { data } = await api.get(`/verify/${docHash}`);
+    return data;
+};
+
+export const verifyEmailToken = async (token) => {
+    const { data } = await api.post('/verify-email', { token });
     return data;
 };
 
@@ -126,4 +122,5 @@ export const sendInvitation = async (docHash, landlordEmail) => {
   const { data } = await api.post('/invitations/send', { docHash, landlordEmail });
   return data;
 };
+
 
