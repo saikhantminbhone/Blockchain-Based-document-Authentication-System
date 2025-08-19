@@ -105,7 +105,7 @@ export default function AboutPage() {
         <motion.section variants={sectionVariants} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.3 }} className="pt-16 border-t border-text-muted/10">
           <div className="grid md:grid-cols-3 gap-8 items-center">
             <div className="md:col-span-1">
-              <img src="https://i.pravatar.cc/300?u=founder" alt="Founder" className="w-48 h-48 rounded-full mx-auto shadow-lg" />
+              <img src={`/assests/sai.jpg`} alt="Founder" className="w-48 h-48 rounded-full mx-auto shadow-lg" />
             </div>
             <div className="md:col-span-2 text-center md:text-left">
               <h2 className="text-3xl font-bold text-text-primary">Meet the Creator</h2>

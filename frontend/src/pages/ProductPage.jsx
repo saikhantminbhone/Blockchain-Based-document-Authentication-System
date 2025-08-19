@@ -19,7 +19,7 @@ const solutions = {
       "Smart Contract Approval: Approve tenant-submitted contracts and immutably seal them on the blockchain with a single, gasless transaction.",
       "Centralized Dashboard: Manage all your properties, view active leases, and handle pending contracts in one secure place.",
     ],
-    image: "https://images.unsplash.com/photo-1634733329491-2a1212c53446?q=80&w=2070&auto=format&fit=crop"
+    image: `/assests/product-management.jpg`
   },
   tenants: {
     icon: <KeyRound className="w-8 h-8 text-primary" />,
@@ -31,7 +31,7 @@ const solutions = {
       "Build Your Rental History: Use your verified contract as trusted proof of residence for loans, visa applications, or future landlords.",
       "Intelligent Matching: Our AI smartly matches your contract to the correct property, preventing clerical errors and disputes.",
     ],
-    image: "https://i.imgur.com/gYf0g3M.png" // Using an image of your actual verification page
+     image: `/assests/product-tenent.jpg`
   },
   verifiers: {
     icon: <Banknote className="w-8 h-8 text-primary" />,
@@ -43,7 +43,7 @@ const solutions = {
       "Cryptographic Certainty: Trust in the immutable record of the blockchain, not on easily forged paper or PDF files.",
       "Drastically Reduce Fraud Risk: Eliminate the possibility of altered documents and streamline your due diligence process.",
     ],
-    image: "https://images.unsplash.com/photo-1556740758-90de374c12ad?q=80&w=2070&auto=format&fit=crop"
+   image: `/assests/product-temper-proof.jpg`
   }
 };
 

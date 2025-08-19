@@ -13,7 +13,7 @@ const articles = [
     excerpt: 'Explore how immutable ledgers provide a single source of truth, making rental agreement disputes a thing of the past.',
     author: 'Sai Khant Min Bhone',
     date: 'August 8, 2025',
-    image: '/assets/blog-blockchain.jpg',
+    image: `/assests/blog-blockchain.jpg`,
     href: '#',
   },
   {
@@ -22,7 +22,7 @@ const articles = [
     excerpt: 'A deep dive into how modern AI like Google Gemini can analyze documents for authenticity and extract critical data, adding a new layer of security.',
     author: 'Sai Khant Min Bhone',
     date: 'July 25, 2025',
-    image: '/assets/blog-ai.jpg',
+    image: '/assests/blog-ai.jpg',
     href: '#',
   },
   {
@@ -31,7 +31,7 @@ const articles = [
     excerpt: 'Blockchain apps are often complex. Learn why sponsoring transactions (gas fees) is the key to creating user-friendly experiences for everyone.',
     author: 'Sai Khant Min Bhone',
     date: 'July 10, 2025',
-    image: '/assets/blog-gasless.jpg',
+    image: '/assests/blog-gasless.jpg',
     href: '#',
   },
   {
@@ -40,7 +40,7 @@ const articles = [
     excerpt: 'Learn the best practices for securing your digital assets and rental agreements in an increasingly complex online world.',
     author: 'Sai Khant Min Bhone',
     date: 'June 30, 2025',
-    image: '/assets/blog-security.jpg',
+    image: '/assests/blog-security.jpg',
     href: '#',
   },
 ];
