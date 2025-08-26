@@ -17,7 +17,7 @@ const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const { v4: uuidv4 } = require('uuid');
 const { OAuth2Client } = require('google-auth-library');
 const QRCode = require('qrcode');
-const { AiScanContract, AiCheckDocumentAuthenticity, AiExtractDeedData, AiCompareAddresses, AiFindBestUnitMatch,AiextractUtilityBillData } = require('./utils/aiModel');
+const { AiScanContract, AiCheckDocumentAuthenticity, AiExtractDeedData, AiCompareAddresses, AiFindBestUnitMatch,AiextractUtilityBillData,AiclassifyDocument } = require('./utils/aiModel');
 
 const app = express();
 app.use('/api/veriff/webhook', express.raw({ type: 'application/json' }));
@@ -417,7 +417,7 @@ app.post('/api/veriff/create-session', authMiddleware, async (req, res) => {
         const { url, id } = response.data.verification;
         await getDB().collection('landlords').updateOne({ _id: req.landlordId }, { $set: { veriffSessionId: id } });
         res.status(201).json({ sessionUrl: url });
-    } catch (error) { res.status(500).json({ message: 'Server error during Veriff session creation.' }); }
+    } catch (error) {console.log(error); res.status(500).json({ message: 'Server error during Veriff session creation.' }); }
 });
 
 app.post('/api/veriff/webhook', async (req, res) => {
@@ -612,6 +612,13 @@ app.post('/api/contracts/initiate', upload.single('contract'), async (req, res) 
         if (!contractFile || !tenantEmail) {
             return res.status(400).json({ message: "Contract file and tenant email are required." });
         }
+        const documentType = await AiclassifyDocument(contractFile.buffer, contractFile.mimetype);
+        if (documentType !== 'contract') {
+            return res.status(400).json({ 
+                message: "Invalid Document: The uploaded file does not appear to be a rental contract. Please upload a valid agreement." 
+            });
+        }
+
         const fingerprint = await AiScanContract(req.file.buffer, req.file.mimetype);
         const docHash = ethers.keccak256(ethers.toUtf8Bytes(fingerprint));
         const existingPending = await getDB().collection('pending_contracts').findOne({ docHash });
@@ -798,7 +805,6 @@ app.post('/api/contracts/:docHash/terminate', authMiddleware, async (req, res) =
     try {
         const { docHash } = req.params;
         console.log(docHash);
-        return res.status(200).json({ message: "Contract has been terminated." });
         const result = await getDB().collection('approved_contracts').updateOne(
             { docHash: docHash, landlordId: req.landlordId },
             { $set: { status: 'terminated', terminatedOn: new Date() } }
@@ -814,6 +820,7 @@ app.post('/api/contracts/:docHash/terminate', authMiddleware, async (req, res) =
 
 app.post('/api/verify-document', upload.single('contract'), async (req, res) => {
     try {
+        coins
         if (!req.file) return res.status(400).json({ message: "Contract file is required." });
         const initialFingerprint = await AiScanContract(req.file.buffer, req.file.mimetype);
         const initialDetails = parseFingerprint(initialFingerprint);

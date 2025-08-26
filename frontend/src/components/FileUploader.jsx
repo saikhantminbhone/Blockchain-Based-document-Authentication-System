@@ -21,6 +21,7 @@ export default function FileUploader({ onFileSelect, title, acceptedFileTypes = 
   };
 
   const handleFileChange = (file) => {
+
     if (file) {
       setSelectedFile(file);
       onFileSelect(file);
@@ -43,7 +44,12 @@ export default function FileUploader({ onFileSelect, title, acceptedFileTypes = 
     }
   };
 
-  const handleChange = (e) => handleFileChange(e.target.files[0]);
+  const handleChange = (e) => {
+
+    if (e.target.files && e.target.files[0]) {
+        handleFileChange(e.target.files[0]);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-4 w-full">
@@ -70,8 +76,7 @@ export default function FileUploader({ onFileSelect, title, acceptedFileTypes = 
         ) : (
           <div className="flex items-center gap-3 text-text-primary">
             <FileText className="w-8 h-8 text-success flex-shrink-0" />
-            {/* --- THIS IS THE FIX --- */}
-            <span className="text-sm md:text-sm font-medium truncate max-w-[calc(100%-60px)]">
+            <span className="text-sm md:text-lg font-medium truncate max-w-[calc(100%-60px)]">
               {selectedFile.name}
             </span>
             <button
@@ -108,14 +113,15 @@ export default function FileUploader({ onFileSelect, title, acceptedFileTypes = 
           className="inline-flex items-center gap-2 px-8 py-3 bg-primary text-white rounded-lg cursor-pointer hover:bg-hover-blue transition-colors duration-200 font-semibold shadow-md hover:shadow-lg"
         >
           <Camera className="w-5 h-5" />
-          <span >Scan with Camera</span>
+          <span className="sm:hidden">Scan with Camera</span>
+          <span className="hidden sm:inline">Scan Document with Camera</span>
         </label>
         <input
           id={uniqueCameraId}
           type="file"
           accept="image/*"
-          capture="environment"
-          onChange={handleChange}
+          capture="environment" // This tells MOBILE browsers to open the camera
+          onChange={handleChange} // Both inputs can use the same handler
           className="hidden"
           ref={cameraInputRef}
         />

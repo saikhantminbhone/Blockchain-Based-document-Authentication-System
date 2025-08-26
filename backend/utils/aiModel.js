@@ -135,11 +135,31 @@ async function AiextractUtilityBillData(fileBuffer, mimeType) {
     }
 }
 
+async function AiclassifyDocument(fileBuffer, mimeType) {
+    console.log("🤖 Gemini Flash: Classifying document type...");
+    const prompt = `
+        You are a document classification expert. Analyze the attached document. 
+        Is this a formal rental or lease agreement? 
+        Respond with ONLY a single word: "contract", "deed", "invoice", or "other".
+    `;
+    try {
+        const imagePart = { inlineData: { data: fileBuffer.toString("base64"), mimeType } };
+        const result = await flashModel.generateContent([prompt, imagePart]);
+        const docType = result.response.text().trim().toLowerCase();
+        console.log(`📄 Gemini classified document as: ${docType}`);
+        return docType;
+    } catch (error) {
+        console.error("❌ Error with Gemini document classification:", error);
+        return 'other'; // Default to 'other' on error
+    }
+}
+
 module.exports = { 
     AiScanContract,
     AiCheckDocumentAuthenticity,
     AiExtractDeedData,
     AiCompareAddresses,
     AiFindBestUnitMatch,
-    AiextractUtilityBillData
+    AiextractUtilityBillData,
+    AiclassifyDocument
 };

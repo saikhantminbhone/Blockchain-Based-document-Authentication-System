@@ -1,7 +1,5 @@
-// src/pages/HomePage.jsx
-
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import FileUploader from '../components/FileUploader';
 import Loader from '../components/Loader';
 import VerificationResult from '../components/VerificationResult';
@@ -11,11 +9,10 @@ import Button from '../components/ui/Button';
 import ServicesSection from '../components/ServiceSection';
 import BlockchainWorkSection from '../components/BlockchainWorkSection.jsx';
 import TestimonialsSection from '../components/TestimonialsSection.jsx';
-import { showSuccessToast, showErrorToast } from '../components/Notifications'; // Corrected import
+import { showSuccessToast, showErrorToast } from '../components/Notifications';
 import { toast } from 'react-hot-toast';
 import { initiateContract, sendInvitation, verifyDocument } from '../services/api';
-import { CheckCircle2 } from 'lucide-react';
-
+import { CheckCircle2, AlertTriangle } from 'lucide-react';
 
 export default function HomePage() {
   const [step, setStep] = useState('upload');
@@ -36,7 +33,7 @@ export default function HomePage() {
   };
 
   const handleFileSelect = async (file) => {
-    if (!file) { // Handles deselection from the FileUploader
+    if (!file) {
       handleReset();
       return;
     }
@@ -44,24 +41,22 @@ export default function HomePage() {
     setStep('verifying');
     setResult(null);
     const toastId = toast.loading('Verifying document...');
-
     try {
       const verificationData = await verifyDocument(file);
+      alert(verificationData)
       toast.dismiss(toastId);
       
       if (verificationData.verified) {
-        // If successful, show a toast and redirect to the official verification page
         showSuccessToast("Document verified successfully!");
         navigate(`/verify/${verificationData.docHash}`);
       } else {
-        // If not found, stay on this page to show the registration option
         setResult(verificationData);
         setStep('result');
       }
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'An unexpected error occurred.';
       toast.error(errorMessage, { id: toastId });
-      handleReset(); // Reset to upload state on error
+      handleReset();
     }
   };
 
@@ -75,23 +70,22 @@ export default function HomePage() {
     try {
       const initiationData = await initiateContract(uploadedFile, tenantEmail);
       toast.dismiss(toastId);
+      
       if (initiationData.status === 'landlord_not_found') {
         setDocHashForInvite(initiationData.docHash);
-        setStep('invite'); // Open the "Invite Landlord" modal
+        setStep('invite');
       } else if (initiationData.status === 'already_approved') {
-        // NEW: Handle already approved case
         showSuccessToast(initiationData.message);
         navigate(`/verify/${initiationData.docHash}`);
       } else {
-        showSuccessToast(initiationData.message);
-        console.log(initiationData)
         setResult(initiationData); 
         setStep('result');
       }
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Failed to initiate registration.';
       toast.error(errorMessage, { id: toastId });
-      setStep('result'); // Go back to the result screen to allow another attempt
+      setResult({ isError: true, message: errorMessage });
+      setStep('result');
     }
   };
 
@@ -118,8 +112,17 @@ export default function HomePage() {
 
       case 'result':
         if (!result) return null;
+
+        if (result.isError) {
+            return (
+                <div className="text-center p-4 space-y-4">
+                    <VerificationResult result={{ verified: false, message: result.message }} />
+                    <Button onClick={handleReset} variant="secondary">Try Again</Button>
+                </div>
+            );
+        }
         
-      if (result.message && (result.message.includes("approval") || result.message.includes("submitted"))) {
+        if (result.status === 'pending_approval' || result.status === 'already_pending') {
           return (
             <div className="text-center p-4 space-y-4">
                 <CheckCircle2 className="w-12 h-12 mx-auto text-success" />
@@ -129,9 +132,8 @@ export default function HomePage() {
             </div>
           );
         }
-        // This is now the main path for a non-verified document.
-        // The successful verification case is removed as it redirects.
-        if (result.message && (result.message.includes("Document not found") || result.message.includes("Could not match"))) {
+        
+        if (!result.verified) {
           return (
             <div className="text-center space-y-4 p-4">
               <VerificationResult result={result} />
@@ -142,7 +144,7 @@ export default function HomePage() {
                 <label className="block text-sm font-medium text-text-secondary mb-1 text-left">Tenant's Email Address *</label>
                 <input
                     type="email"
-                    placeholder="Enter the tenant's email for notifications"
+                    placeholder="Enter tenant's email for notifications"
                     value={tenantEmail}
                     onChange={(e) => setTenantEmail(e.target.value)}
                     required
@@ -159,13 +161,7 @@ export default function HomePage() {
           );
         }
         
-        // This handles other messages, like "Invitation sent"
-        return (
-          <div className="text-center p-4 space-y-4">
-            <p className="text-lg text-success">{result.message}</p>
-            <Button onClick={handleReset}>Start Over</Button>
-          </div>
-        );
+        return null;
 
       case 'upload':
       default:
