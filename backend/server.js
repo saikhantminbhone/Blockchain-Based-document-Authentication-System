@@ -820,7 +820,6 @@ app.post('/api/contracts/:docHash/terminate', authMiddleware, async (req, res) =
 
 app.post('/api/verify-document', upload.single('contract'), async (req, res) => {
     try {
-        coins
         if (!req.file) return res.status(400).json({ message: "Contract file is required." });
         const initialFingerprint = await AiScanContract(req.file.buffer, req.file.mimetype);
         const initialDetails = parseFingerprint(initialFingerprint);
