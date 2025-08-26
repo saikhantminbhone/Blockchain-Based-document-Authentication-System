@@ -68,10 +68,12 @@ export const approveContract = async (docHash) => {
 };
 
 export const verifyDocument = async (file) => {
-    const formData = new FormData();
-    formData.append('contract', file);
-    const { data } = await api.post('/verify-document', formData);
-    return data;
+  const formData = new FormData();
+  formData.append("contract", file, file.name || "camera.jpg");
+  const { data } = await api.post("/verify-document", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
 };
 
 export const verifyUnitDeed = async (unitId, formData) => {

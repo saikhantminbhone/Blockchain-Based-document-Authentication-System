@@ -21,7 +21,7 @@ const { AiScanContract, AiCheckDocumentAuthenticity, AiExtractDeedData, AiCompar
 
 const app = express();
 app.use('/api/veriff/webhook', express.raw({ type: 'application/json' }));
-app.use(cors());
+app.use(cors({ origin: "*" }));
 app.use(express.json());
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -820,13 +820,20 @@ app.post('/api/contracts/:docHash/terminate', authMiddleware, async (req, res) =
 
 app.post('/api/verify-document', upload.single('contract'), async (req, res) => {
     try {
+        console.log("verifiying documents")
         if (!req.file) return res.status(400).json({ message: "Contract file is required." });
+        const documentType = await AiclassifyDocument(req.file.buffer, req.file.mimetype);
+        if (documentType !== 'contract') {
+            return res.status(400).json({ 
+                message: "Invalid Document: The uploaded file does not appear to be a rental contract. Please upload a valid agreement." 
+            });
+        }
         const initialFingerprint = await AiScanContract(req.file.buffer, req.file.mimetype);
         const initialDetails = parseFingerprint(initialFingerprint);
         console.log(initialDetails)
         const landlord = await getDB().collection('landlords').findOne({ name: initialDetails.landlordName });
         const unit = await getDB().collection('units').findOne({ landlordId: landlord?._id, unitNumber: initialDetails.unitInfo.split(',')[0].trim() });
-        if (!landlord) {
+        if (!landlord || !unit) {
             return res.status(200).json({verified: false, message: "Document not found or not verified on the blockchain.", fingerprint: initialFingerprint, details: null });
         }
         const officialUnitInfo = `${unit.unitNumber}, ${unit.address.street}, ${unit.address.city}`;
