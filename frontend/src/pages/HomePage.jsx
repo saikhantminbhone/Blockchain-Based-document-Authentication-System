@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import FileUploader from '../components/FileUploader';
-import Loader from '../components/Loader';
+import Loader from '../components/Loader.jsx';
 import VerificationResult from '../components/VerificationResult';
 import Modal from '../components/Modal.jsx';
 import Card from '../components/ui/Card';
@@ -21,6 +21,7 @@ export default function HomePage() {
   const [docHashForInvite, setDocHashForInvite] = useState('');
   const [landlordEmail, setLandlordEmail] = useState('');
   const [tenantEmail, setTenantEmail] = useState('');
+  const [modalError, setModalError] = useState('');
   const navigate = useNavigate();
 
   const handleReset = () => {
@@ -30,6 +31,7 @@ export default function HomePage() {
     setDocHashForInvite('');
     setLandlordEmail('');
     setTenantEmail('');
+    setModalError('');
   };
 
   const handleFileSelect = async (file) => {
@@ -41,9 +43,9 @@ export default function HomePage() {
     setStep('verifying');
     setResult(null);
     const toastId = toast.loading('Verifying document...');
+
     try {
       const verificationData = await verifyDocument(file);
-      alert(verificationData)
       toast.dismiss(toastId);
       
       if (verificationData.verified) {
@@ -55,7 +57,7 @@ export default function HomePage() {
       }
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'An unexpected error occurred.';
-      toast.error(errorMessage, { id: toastId });
+      showErrorToast(errorMessage);
       handleReset();
     }
   };
@@ -83,7 +85,7 @@ export default function HomePage() {
       }
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Failed to initiate registration.';
-      toast.error(errorMessage, { id: toastId });
+      showErrorToast(errorMessage);
       setResult({ isError: true, message: errorMessage });
       setStep('result');
     }
@@ -92,14 +94,15 @@ export default function HomePage() {
   const handleSendInvitation = async (e) => {
     e.preventDefault();
     setStep('initiating');
-    const toastId = toast.loading('Sending invitation...');
+    setModalError('');
+
     try {
       const inviteResult = await sendInvitation(docHashForInvite, landlordEmail);
-      showSuccessToast(inviteResult.message, { id: toastId });
+      showSuccessToast(inviteResult.message);
       handleReset();
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Failed to send invitation.';
-      toast.error(errorMessage, { id: toastId });
+      setModalError(errorMessage);
       setStep('invite');
     }
   };
@@ -186,7 +189,11 @@ export default function HomePage() {
       <Modal isOpen={step === 'invite'} onClose={handleReset} title="Invite Landlord">
         <form onSubmit={handleSendInvitation} className="space-y-4">
           <p className="text-sm text-text-secondary">The landlord for this contract isn't in our system. Please enter their email to send an invitation.</p>
-          <input type="email" placeholder="Landlord's email address" value={landlordEmail} onChange={(e) => setLandlordEmail(e.target.value)} required className="w-full px-4 py-2 border rounded-md" />
+          <input type="email" placeholder="Landlord's email address" value={landlordEmail} onChange={(e) => {
+              setLandlordEmail(e.target.value);
+              setModalError('');
+          }} required className="w-full px-4 py-2 border rounded-md" />
+          {modalError && <p className="text-sm text-error text-center">{modalError}</p>}
           <Button type="submit" isLoading={step === 'initiating'} className="w-full">Send Invitation</Button>
         </form>
       </Modal>

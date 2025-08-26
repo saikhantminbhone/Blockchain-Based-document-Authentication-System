@@ -7,8 +7,13 @@ const flashModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 async function AiScanContract(fileBuffer, mimeType) {
     console.log("🤖 Gemini Flash: Extracting contract fingerprint...");
-    const prompt = `Analyze the attached rental agreement. Extract the following details and return them as a single-line, pipe-separated string. Do NOT add any explanation, conversational text, or markdown formatting. The required format is exactly: Landlord: [Full Name] | Tenant: [Full Name] | Unit: [Unit Number and Full Address] | From: [Start Date DD/MM/YYYY] | To: [End Date DD/MM/YYYY] | Rent: [Monthly Rent as a number]`;
-
+        const prompt = `
+You are an expert in analyzing rental or lease agreements from document images.
+Look at the layout, headings, and visible text. Extract the following details as a single-line, pipe-separated string:
+Landlord: [Full Name] | Tenant: [Full Name] | Unit: [Unit Number and Full Address] | From: [Start Date DD/MM/YYYY] | To: [End Date DD/MM/YYYY] | Rent: [Monthly Rent as a number]
+If the information is unclear, respond with "unknown" for that field.
+Do NOT add any extra text or explanation.
+`;
     try {
         const imagePart = { inlineData: { data: fileBuffer.toString("base64"), mimeType } };
         const result = await flashModel.generateContent([prompt, imagePart]);
@@ -40,7 +45,14 @@ async function AiCheckDocumentAuthenticity(fileBuffer, mimeType) {
 
 async function AiExtractDeedData(fileBuffer, mimeType) {
     console.log("🤖 Gemini Flash: Extracting deed data...");
-    const prompt = `Analyze the attached Thai property title deed (Chanote). Extract the full name of the current owner and the full property address. Respond with ONLY a valid JSON object with keys "ownerName" and "propertyAddress". For example: {"ownerName": "สมชาย ใจดี", "propertyAddress": "123 Sukhumvit Road, Khlong Toei, Bangkok 10110"}`;
+    const prompt = `You are an expert in analyzing property deeds from document images.
+From the attached image, extract:
+- Full name of the current owner
+- Full property address
+ Respond with ONLY a valid JSON object with keys "ownerName" and "propertyAddress". 
+ For example: {"ownerName": "สมชาย ใจดี", "propertyAddress": "123 Sukhumvit Road, Khlong Toei, Bangkok 10110"}
+ If any field is unclear, use "unknown" as the value.
+Do NOT add any extra text or explanation.`;
 
     try {
         const imagePart = { inlineData: { data: fileBuffer.toString("base64"), mimeType } };
@@ -117,11 +129,15 @@ async function AiFindBestUnitMatch(unitInfoFromDoc, officialUnits) {
 
 async function AiextractUtilityBillData(fileBuffer, mimeType) {
     console.log("🤖 Gemini Flash: Extracting utility bill data...");
-    const prompt = `
-        Analyze the attached utility bill (e.g., electricity, water, internet bill).
-        Extract the full name and the full service address listed on the bill.
-        Respond with ONLY a valid JSON object with keys "nameOnBill" and "addressOnBill".
-    `;
+       const prompt = `
+            You are an expert in analyzing utility bills from document images.
+            From the attached image, extract:
+            - Full name on the bill
+            - Full service address on the bill
+            Respond with ONLY a valid JSON object with keys "nameOnBill" and "addressOnBill".
+            If any field is unclear, use "unknown" as the value.
+            Do NOT add extra text or explanation.
+            `;
     try {
         const imagePart = { inlineData: { data: fileBuffer.toString("base64"), mimeType } };
         const result = await flashModel.generateContent([prompt, imagePart]);
@@ -136,21 +152,31 @@ async function AiextractUtilityBillData(fileBuffer, mimeType) {
 }
 
 async function AiclassifyDocument(fileBuffer, mimeType) {
-    console.log("🤖 Gemini Flash: Classifying document type...");
+   console.log("🤖 Gemini Flash: Performing single-pass document validation...");
+
     const prompt = `
-        You are a document classification expert. Analyze the attached document. 
-        Is this a formal rental or lease agreement? 
-        Respond with ONLY a single word: "contract", "deed", "invoice", or "other".
-    `;
+You are a meticulous document image analyst.
+Analyze the attached image for visual cues only—ignore trying to read the full text.
+Step 1: Determine if this image is a text-based document or a general photograph (scene, person, or object).
+- If it is a photograph, classify as "photo".
+- If it is a document, classify its specific type from: "contract", "deed", "invoice", or "other".
+Focus on layout, tables, headings, stamps, signatures, and formatting cues.
+Respond ONLY with a JSON object with two keys:
+1. "type": one of "photo", "contract", "deed", "invoice", or "other".
+2. "confidence": a number between 0.0 and 1.0 indicating your certainty (for "photo", use 1.0).
+`;
+
     try {
         const imagePart = { inlineData: { data: fileBuffer.toString("base64"), mimeType } };
         const result = await flashModel.generateContent([prompt, imagePart]);
-        const docType = result.response.text().trim().toLowerCase();
-        console.log(`📄 Gemini classified document as: ${docType}`);
-        return docType;
+        const jsonString = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+        const validation = JSON.parse(jsonString);
+        console.log(`📄 Gemini validation result:`, validation);
+        return validation;
+
     } catch (error) {
-        console.error("❌ Error with Gemini document classification:", error);
-        return 'other'; // Default to 'other' on error
+        console.error("❌ Error with Gemini document validation:", error);
+        return { type: 'other', confidence: 0.5 }; // Default fallback
     }
 }
 

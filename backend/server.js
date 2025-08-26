@@ -613,9 +613,9 @@ app.post('/api/contracts/initiate', upload.single('contract'), async (req, res) 
             return res.status(400).json({ message: "Contract file and tenant email are required." });
         }
         const documentType = await AiclassifyDocument(contractFile.buffer, contractFile.mimetype);
-        if (documentType !== 'contract') {
+        if (documentType !== 'contract' || validation.confidence < 0.90) {
             return res.status(400).json({ 
-                message: "Invalid Document: The uploaded file does not appear to be a rental contract. Please upload a valid agreement." 
+                message: `Invalid Document: The uploaded file does not appear to be a rental contract (AI detected type: '${validation.type}' with ${Math.round(validation.confidence * 100)}% confidence).` 
             });
         }
 
@@ -823,9 +823,9 @@ app.post('/api/verify-document', upload.single('contract'), async (req, res) => 
         console.log("verifiying documents")
         if (!req.file) return res.status(400).json({ message: "Contract file is required." });
         const documentType = await AiclassifyDocument(req.file.buffer, req.file.mimetype);
-        if (documentType !== 'contract') {
+        if (documentType !== 'contract' || validation.confidence < 0.90) {
             return res.status(400).json({ 
-                message: "Invalid Document: The uploaded file does not appear to be a rental contract. Please upload a valid agreement." 
+                message: `Invalid Document: The uploaded file does not appear to be a rental contract (AI detected type: '${validation.type}' with ${Math.round(validation.confidence * 100)}% confidence).` 
             });
         }
         const initialFingerprint = await AiScanContract(req.file.buffer, req.file.mimetype);
