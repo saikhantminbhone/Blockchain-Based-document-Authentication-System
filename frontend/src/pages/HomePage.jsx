@@ -1,3 +1,5 @@
+// src/pages/HomePage.jsx
+
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import FileUploader from '../components/FileUploader';
@@ -12,7 +14,7 @@ import TestimonialsSection from '../components/TestimonialsSection.jsx';
 import { showSuccessToast, showErrorToast } from '../components/Notifications';
 import { toast } from 'react-hot-toast';
 import { initiateContract, sendInvitation, verifyDocument } from '../services/api';
-import { CheckCircle2, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, XCircle } from 'lucide-react'; // Import XCircle
 
 export default function HomePage() {
   const [step, setStep] = useState('upload');
@@ -58,7 +60,9 @@ export default function HomePage() {
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'An unexpected error occurred.';
       showErrorToast(errorMessage);
-      handleReset();
+      setResult({ isError: true, message: errorMessage });
+      setStep('result');
+      toast.dismiss(toastId);
     }
   };
 
@@ -116,10 +120,13 @@ export default function HomePage() {
       case 'result':
         if (!result) return null;
 
+        // --- THIS IS THE FIX: A new, dedicated view for AI validation errors ---
         if (result.isError) {
             return (
-                <div className="text-center p-4 space-y-4">
-                    <VerificationResult result={{ verified: false, message: result.message }} />
+                <div className="text-center p-6 space-y-4">
+                    <XCircle className="w-12 h-12 mx-auto text-error" />
+                    <h3 className="text-xl font-bold text-error">Validation Failed</h3>
+                    <p className="text-text-secondary">{result.message}</p>
                     <Button onClick={handleReset} variant="secondary">Try Again</Button>
                 </div>
             );
