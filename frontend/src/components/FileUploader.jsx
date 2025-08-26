@@ -120,8 +120,8 @@ export default function FileUploader({ onFileSelect, title, acceptedFileTypes = 
           id={uniqueCameraId}
           type="file"
           accept="image/*"
-          capture="environment" // This tells MOBILE browsers to open the camera
-          onChange={handleChange} // Both inputs can use the same handler
+          capture="environment" 
+          onChange={handleChange} 
           className="hidden"
           ref={cameraInputRef}
         />
