@@ -71,7 +71,6 @@ export const verifyDocument = async (file) => {
     const formData = new FormData();
     formData.append('contract', file);
     const { data } = await api.post('/verify-document', formData);
-    alert(data)
     return data;
 };
 
