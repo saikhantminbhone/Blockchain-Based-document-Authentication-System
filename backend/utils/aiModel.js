@@ -154,17 +154,21 @@ async function AiextractUtilityBillData(fileBuffer, mimeType) {
 async function AiclassifyDocument(fileBuffer, mimeType) {
    console.log("🤖 Gemini Flash: Performing single-pass document validation...");
 
-    const prompt = `
-You are a meticulous document image analyst.
-Analyze the attached image for visual cues only—ignore trying to read the full text.
-Step 1: Determine if this image is a text-based document or a general photograph (scene, person, or object).
-- If it is a photograph, classify as "photo".
-- If it is a document, classify its specific type from: "contract", "deed", "invoice", or "other".
-Focus on layout, tables, headings, stamps, signatures, and formatting cues.
-Respond ONLY with a JSON object with two keys:
-1. "type": one of "photo", "contract", "deed", "invoice", or "other".
-2. "confidence": a number between 0.0 and 1.0 indicating your certainty (for "photo", use 1.0).
-`;
+        const prompt = `
+        You are a meticulous document image analyst.
+        Analyze the attached image for visual cues only—ignore trying to read the full text.
+        Step 1: Determine if this image is a document or a non-document photograph.
+        - Treat all images of contracts, receipts, invoices, deeds, forms, or printed/handwritten pages as "document", even if photographed.
+        - Only classify as "photo" if the image clearly shows a scene, person, or object and not a document.
+
+        Step 2: If it is a document, classify its specific type: "contract", "deed", "invoice", or "other".
+        Focus on layout, tables, headings, stamps, signatures, and formatting cues.
+
+        Respond ONLY with a JSON object with two keys:
+        1. "type": one of "document", "contract", "deed", "invoice", "other", or "photo".
+        2. "confidence": a number between 0.0 and 1.0 indicating your certainty.
+        `;
+
 
     try {
         const imagePart = { inlineData: { data: fileBuffer.toString("base64"), mimeType } };
