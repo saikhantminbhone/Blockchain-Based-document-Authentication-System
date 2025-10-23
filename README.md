@@ -1,10 +1,9 @@
 # Block Lease: A Blockchain-Based Document Authentication System
 
-**Document Version:** 1.1
-**Last Updated:** August 19, 2025
+**Document Version:** 1.2
+**Last Updated:** August 29, 2025
 
 A final year project demonstrating a full-stack, AI-powered document authentication platform for the real estate rental market, secured by blockchain technology.
-
 
 ## 📖 Project Overview
 
@@ -20,75 +19,66 @@ The system leverages a powerful combination of third-party KYC, custom AI docume
 The system is divided into three main stages: onboarding trusted participants, managing the lifecycle of a rental agreement, and providing public, verifiable proof.
 
 #### Stage 1: Landlord Onboarding & Verification (Establishing Trust)
-* **1. Landlord Registration** 👤
-    * A new landlord, Niran, signs up using either Google Sign-In or a traditional email and password.
-    * **Backend:** Creates a `landlords` record in MongoDB with `emailStatus: 'unverified'` and `kycStatus: 'pending'`. A unique, hashed verification token is generated and saved to the user's record.
-    * **Result:** A verification email is sent to Niran. The frontend shows a "Please check your email" message. The user is **not** logged in yet.
+* **1. Landlord Registration & Email Verification** 👤
+    * A new landlord signs up using Google Sign-In or an email/password.
+    * **Backend:** Creates a `landlords` record with `emailStatus: 'unverified'` and sends a time-sensitive verification link.
+    * **Result:** The user must click the link in their email to verify their account, at which point they are logged in and redirected to the KYC page.
 
-* **2. Email Verification** 📧
-    * Niran opens his email and clicks the verification link (`.../verify-email/:token`).
-    * **Frontend:** The `VerifyEmailPage` opens and sends the token to the backend.
-    * **Backend:** The `/api/verify-email` endpoint validates the token. If valid, it updates the landlord's record to `emailStatus: 'verified'`.
-    * **Result:** The backend issues a JWT login token. The frontend logs Niran in and automatically redirects him to the `/kyc` page.
+* **2. Identity Verification (KYC)** 🕵️‍♂️
+    * On the `/kyc` page, the landlord starts a secure session with **Veriff**.
+    * **Webhook:** Veriff's servers send a secure webhook to the backend. Upon an `approved` status, the server updates the landlord's record to `kycStatus: 'approved'` and updates their name to match the official one from their ID.
+    * **Outcome:** The user is now a **Trusted Landlord**.
 
-* **3. Identity Verification (KYC)** 🕵️‍♂️
-    * On the `/kyc` page, Niran clicks "Start Verification."
-    * **Backend:** Calls the **Veriff** API to create a secure session.
-    * **Frontend:** Niran is redirected to Veriff's UI to scan his government ID and complete a live selfie check.
-    * **Webhook:** Veriff's servers send a secure webhook to the backend.
-    * **Backend:** Upon an `approved` status, the server updates Niran's record, setting `kycStatus: 'approved'` and updating his name to match the official one from his ID.
-    * **Outcome:** Niran is now a **Trusted Landlord**.
-
-* **4. Adding a Property (Landlord-Led)** 🏡
-    * On his dashboard, the approved Niran clicks "+ Add New Property."
-    * **Frontend:** He fills out a detailed address form and uploads two documents: a **Title Deed** and a recent **Utility Bill**.
+* **3. Property Verification (Landlord-Led)** 🏡
+    * On their dashboard, the approved landlord adds a property, filling out a detailed address form and uploading a **Title Deed** and a recent **Utility Bill**.
     * **Backend (`/api/units`):**
         * Uses **Gemini AI** to perform a multi-step check:
             1.  `checkDocumentAuthenticity`: Ensures the uploaded files are legitimate scans.
             2.  `extractDeedData` & `extractUtilityBillData`: Reads the names and addresses from both documents.
-            3.  **3-Way Match:** Confirms the name from the Deed, the Bill, and Niran's verified KYC profile are all the same.
+            3.  **3-Way Match:** Confirms the name from the Deed, the Bill, and the landlord's verified KYC profile are all the same.
             4.  `compareAddressesAI`: Confirms the address on the Deed and the Bill match each other.
-        * If there's a minor address mismatch with his form input, the frontend prompts him to confirm the AI-suggested address.
+        * If there's a minor address mismatch with the form input, the frontend prompts for confirmation.
     * **Outcome:** If all checks pass, the unit is saved with `isVerified: true`, becoming a **Trusted Property**.
 
 #### Stage 2: The Contract Lifecycle (Tenant-Led)
 
-* **5. Tenant Uploads Contract** 📤
-    * A tenant, Malee, visits the homepage, uploads her signed `rental-contract.pdf`, and enters her email.
+* **4. Tenant Uploads Contract** 📤
+    * A tenant visits the homepage, uploads their signed `rental-contract.pdf`, and enters their email.
     * **Backend (`/api/contracts/initiate`):**
-        * **Duplicate Check:** First checks if this exact contract is already pending or approved.
-        * **Gemini AI (`extractContractFingerprint`):** Scans the contract to get the initial fingerprint.
-        * **Gemini AI (`findBestUnitMatchAI`):** Intelligently compares the `Unit Info` from the contract against the landlord's property portfolio to find the correct unit, even with typos.
-    * **Result:** A `pending_contracts` record is created. Niran is notified.
+        * **AI Validation Pipeline:** First classifies the document to ensure it's a contract, rejecting random photos.
+        * **Duplicate Check:** Checks if this exact contract is already pending or approved.
+        * **AI Fingerprinting & Matching:** Scans the contract to get the initial fingerprint and intelligently matches the `Unit Info` against the landlord's property portfolio.
+    * **Result:** A `pending_contracts` record is created. The landlord is notified.
 
-* **6. Landlord Approval & Blockchain Signature** ✍️🔗
-    * Niran sees the pending contract on his dashboard.
-    * **Scenario A (Unit is new):** He clicks "Add Unit & Approve." The backend creates a *placeholder* unit with `isVerified: false`, and the contract remains pending.
-    * **Scenario B (Unit exists but is unverified):** The "Approve" button is disabled, prompting him to verify the unit's title deed first.
-    * **Scenario C (Unit exists and is verified):** He clicks "Approve."
-        * **Backend (`/api/approve-contract`):** Reconstructs a **Canonical Fingerprint** using the official, verified data from the database.
-        * It calculates the SHA-256 hash of this *corrected* fingerprint (`docHash`).
-        * It uses the Admin Wallet to call the `addDocument` function on the smart contract, writing the hash and details to the blockchain.
-    * **Email Notification:** The tenant (Malee) immediately receives an email with a sharable link and QR code for the public verification page.
+* **5. Landlord Approval & Blockchain Signature** ✍️🔗
+    * The landlord sees the pending contract on their dashboard. Approval is blocked if the associated unit is not yet verified.
+    * Upon clicking "Approve," the backend reconstructs a **Canonical Fingerprint** using the official, verified data from the database.
+    * It calculates the SHA-256 hash of this *corrected* fingerprint (`docHash`) and uses the Admin Wallet to call the `addDocument` function on the smart contract.
+    * **Email Notification:** The tenant immediately receives an email with a sharable link and QR code for the public verification page.
 
 #### Stage 3: Public Verification & Sharing
 
-* **7. Sharing the Proof** 📲
-    * The landlord (from their dashboard) or the tenant (from their email) can access and share the unique QR code and verification link.
+This stage has two distinct paths for a third party to verify a document.
 
-* **8. Public Verification** 🌍
-    * A third party (like a bank) opens the link (`https:/blocklease.site/verify/[docHash]`).
+* **6. Verification by Direct Upload (Homepage)** 🔍
+    * A third party (like a bank) visits the homepage and uploads a contract file to the main verifier tool.
+    * **Backend (`/api/verify-document`):** Re-generates the canonical fingerprint, hashes it, and checks the blockchain for a match.
+    * **Result:** If a match is found, the user is automatically redirected to the official, sharable "Certificate of Authenticity" page for that document.
+
+* **7. Verification by Sharable Link** 📲
+    * A landlord (from their dashboard) or a tenant (from their email) shares the unique QR code or verification link (e.g., `https://.../verify/[docHash]`).
+    * A third party opens the link.
     * **Backend (`/api/verify/:docHash`):**
-        1.  Queries the **blockchain** to confirm the `docHash` exists and retrieves the on-chain data.
+        1.  Queries the **blockchain** with the `docHash` to confirm it exists and retrieve the on-chain data.
         2.  Queries **MongoDB** to get the S3 key for the original document. If the off-chain record is missing, it gracefully handles it as a "Terminated" status.
         3.  Generates a **secure, temporary presigned URL** for the document preview.
-    * **Result:** The verifier sees a "Certificate of Authenticity" page, displaying the verified on-chain data alongside a preview of the original document.
+    * **Result:** The verifier sees the "Certificate of Authenticity" page, displaying the verified on-chain data alongside a preview of the original document.
 
 ### Storage & Data Model Summary
 
 | Data Type | Stored In | Method / Details |
 | :--- | :--- | :--- |
-| **Landlord Personal Data** | MongoDB (`landlords`) | `name` (updated by Veriff), `email`, `hashedPassword`, `kycStatus`, `emailStatus`, `emailVerificationToken`, `authProvider`, `veriffData`. |
+| **Landlord Personal Data** | MongoDB (`landlords`) | `name` (updated by Veriff), `email`, `hashedPassword`, `kycStatus`, `emailStatus`, `authProvider`, `veriffData`. |
 | **Landlord Identity Documents** | Veriff's Secure Vault | **NEVER STORED ON YOUR SYSTEM.** Your app only stores the final verification decision from Veriff's webhook. |
 | **Property Unit Data** | MongoDB (`units`) | `landlordId`, `unitNumber`, `floor`, detailed `address` object, `isVerified`, `status` (`active`/`archived`), `aiExtractedData`. |
 | **Title Deed & Utility Bill Files** | AWS S3 (Private) | Uploaded by the landlord. Verified by your custom **Gemini AI**. Accessed only via secure, temporary presigned URLs. |
@@ -101,10 +91,11 @@ The system is divided into three main stages: onboarding trusted participants, m
 ## ✨ Core Features
 
 * **Secure Onboarding Flow:** A multi-step process including **Email Verification**, professional KYC with **Veriff**, and a custom **multi-document AI verification** (Title Deed + Utility Bill) for properties.
-* **Intelligent Contract Initiation:** Tenants can upload contracts, and the system uses **Gemini AI** to parse the content and intelligently match it to the correct landlord and property, even with typos.
+* **Intelligent Contract Initiation:** An advanced AI pipeline classifies documents to reject non-contracts, prevents duplicate submissions, and intelligently matches contract details to the correct landlord and property.
 * **Canonical Fingerprinting:** Ensures data integrity by creating a clean, "canonical" version of contract details before hashing, overriding potential typos from scanned documents with official database records.
-* **Gasless Blockchain Transactions:** The system admin wallet sponsors all Polygon blockchain transactions, providing a seamless Web2 experience for all users (no MetaMask or crypto required).
-* **Sharable Proof:** Every approved contract generates a unique public URL and QR code, leading to a "Certificate of Authenticity" page that displays on-chain data and the original document.
+* **Gasless Blockchain Transactions:** The system admin wallet sponsors all Polygon blockchain transactions, providing a seamless Web2 experience for all users.
+* **Dual Verification Methods:** A public-facing tool for verification by direct upload, and a sharable URL/QR code for viewing a specific "Certificate of Authenticity."
+* **Lifecycle Management:** Landlords can terminate active contracts and archive/restore properties from their dashboard.
 * **Modern Full-Stack:** Built with React, Node.js, and Tailwind CSS, featuring a polished UI with interactive components, toast notifications, and a premium "Lightbox" document viewer.
 
 ## 🛠️ Technology Stack

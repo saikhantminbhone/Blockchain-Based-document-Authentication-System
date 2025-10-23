@@ -346,10 +346,11 @@ app.post('/api/auth/google', async (req, res) => {
             const newLandlord = {
                 name: name,
                 email: email,
-                password: null, // No password for OAuth users
+                password: null, 
                 authProvider: 'google',
                 profilePicture: picture,
                 kycStatus: 'pending',
+                emailStatus: 'verified',
                 createdAt: new Date(),
             };
             const result = await getDB().collection('landlords').insertOne(newLandlord);
