@@ -18,6 +18,7 @@ import AboutPage from './pages/AboutPage.jsx';
 import BlogPage from './pages/BlogPage.jsx';
 import ContactPage from './pages/ContactPage.jsx';
 import VerifyEmailPage from './pages/VerifyEmailPage.jsx';
+import KycSubmittedPage from './pages/KycSubmittedPage.jsx';
 
 
 function App() {
@@ -51,6 +52,14 @@ function App() {
                   </ProtectedRoute>
                 } 
               />
+              <Route 
+              path="/kyc-submitted" 
+              element={
+                <ProtectedRoute>
+                  <KycSubmittedPage />
+                </ProtectedRoute>
+              } 
+            />
               <Route 
                 path="/dashboard" 
                 element={

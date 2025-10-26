@@ -83,7 +83,7 @@ const uploadFileToS3 = async (fileBuffer, folder, originalname) => {
     console.log(`✅ File uploaded to S3: ${s3Key}`);
     return s3Key;
 };
-const webhookRaw = express.raw({ type: 'application/json' });
+const webhookRaw = express.raw({ type: '*/*' });
 
 function splitName(fullName = '') {
     const parts = fullName.trim().split(/\s+/).filter(Boolean);
@@ -381,7 +381,7 @@ app.post('/api/veriff/create-session', authMiddleware, async (req, res) => {
         // Build payload
         const veriffPayload = {
             verification: {
-                callback: `${VERIFF_PUBLIC_URL}/api/veriff/webhook`,
+                callback: `${VERIFF_PUBLIC_URL}/kyc-submitted`,
                 vendorData: String(req.landlordId),
                 person: { firstName, lastName },
                 timestamp: new Date().toISOString(),
@@ -434,86 +434,172 @@ app.post('/api/veriff/create-session', authMiddleware, async (req, res) => {
     }
 });
 
-// ---------- WEBHOOK (RAW BODY) ----------
+// --- Email builder ---
+async function sendKycEmail(landlord, kycStatus, { FRONTEND_URL, LOGO_URL }) {
+  const year = new Date().getFullYear();
+  const name = landlord.name || 'Valued User';
+  const email = landlord.email;
+
+  const wrapEmail = (titleColor, titleText, bodyHtml, buttonUrl, buttonText) => `
+  <!DOCTYPE html>
+  <html lang="en">
+  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+  <title>${titleText}</title>
+  <style>@media (max-width:600px){.container{width:100%!important}.p24{padding:16px!important}.btn{display:block!important;width:100%!important}}</style>
+  </head>
+  <body style="margin:0;padding:0;background-color:#F9FAFB;">
+    <table width="100%" cellspacing="0" cellpadding="0" style="background:#F9FAFB;">
+      <tr><td align="center" style="padding:32px 16px;">
+        <table width="600" class="container" cellspacing="0" cellpadding="0"
+          style="background:#FFFFFF;border-radius:12px;box-shadow:0 10px 15px -3px rgba(0,0,0,0.1);">
+          <tr><td align="center" style="padding:24px;border-bottom:1px solid #E5E7EB;">
+            <img src="${LOGO_URL}" width="160" alt="Block Lease" style="display:block;height:auto;">
+          </td></tr>
+          <tr><td class="p24" style="padding:24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#111827;">
+            <h1 style="margin:0 0 8px;font-size:24px;line-height:1.25;color:${titleColor};">${titleText}</h1>
+            <p style="margin:0 0 16px;color:#6B7280;">Hello ${name},</p>
+            ${bodyHtml}
+            <div style="text-align:center;margin:32px 0;">
+              <a href="${buttonUrl}" target="_blank"
+                 style="display:inline-block;padding:14px 28px;font-weight:600;font-size:16px;
+                        color:#fff;background-color:#1E3A8A;text-decoration:none;border-radius:8px;">
+                 ${buttonText}</a>
+            </div>
+          </td></tr>
+          <tr><td align="center" style="padding:16px 24px;border-top:1px solid #E5E7EB;
+              font-size:12px;color:#9CA3AF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+            © ${year} Block Lease™. All rights reserved.
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body></html>`;
+
+  let subject = '';
+  let html = '';
+
+  switch (kycStatus) {
+    case 'approved':
+      subject = 'Congratulations! Your Block Lease account is verified.';
+      html = wrapEmail(
+        '#10B981',
+        'Account Verified!',
+        `<p style="color:#6B7280;">Your identity has been verified and your Block Lease account is now fully active.</p>
+         <p style="color:#6B7280;">You can now log in to manage your properties and contracts.</p>`,
+        `${process.env.FRONTEND_URL}/dashboard`,
+        'Go to Dashboard'
+      );
+      break;
+
+    case 'resubmission_requested':
+      subject = 'Action needed: Please resubmit your verification';
+      html = wrapEmail(
+        '#F59E0B',
+        'Action Needed: Resubmit Verification',
+        `<p style="color:#6B7280;">We couldn’t complete your verification — this may be due to glare, blur, or cropped ID images.</p>
+         <ul style="color:#6B7280;">
+           <li>Retake your ID photo clearly and ensure all corners are visible</li>
+           <li>Remove masks/hats and use good lighting</li>
+         </ul>`,
+        `${process.env.FRONTEND_URL}/verify-again`,
+        'Retry Verification'
+      );
+      break;
+
+    default:
+      subject = 'Verification unsuccessful – please try again';
+      html = wrapEmail(
+        '#EF4444',
+        'Verification Unsuccessful',
+        `<p style="color:#6B7280;">We were unable to verify your identity. This can happen due to unclear images or mismatched information.</p>
+         <p style="color:#6B7280;">You can log in and start a new verification attempt when ready.</p>`,
+        `${process.env.FRONTEND_URL}/login`,
+        'Log In to Retry'
+      );
+      break;
+  }
+
+  await sendEmail({ to: email, subject, html });
+}
+
+// --- Express webhook route (with raw parser) ---
 app.post('/api/veriff/webhook', webhookRaw, async (req, res) => {
+  try {
+    const raw = req.body;
+    if (!Buffer.isBuffer(raw)) return res.status(400).send('Webhook must be raw JSON');
+
+    const sigHeader = req.headers['x-hmac-signature'];
+    if (!sigHeader) return res.status(400).send('Missing signature header');
+
+    // Verify HMAC (use buffer-safe comparison)
+    const expected = crypto.createHmac('sha256', VERIFF_SECRET_KEY).update(raw).digest('hex');
+    const valid =
+      Buffer.from(expected, 'hex').length === Buffer.from(sigHeader.trim(), 'hex').length &&
+      crypto.timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(sigHeader.trim(), 'hex'));
+
+    if (!valid) return res.status(403).send('Invalid signature');
+
+    const event = JSON.parse(raw.toString('utf8'));
+    const v = event?.verification;
+    if (!v) return res.status(200).send('OK');
+
+    const decision = v.status; // 'approved' | 'declined' | 'resubmission_requested' | ...
+    const statusMap = {
+      approved: 'approved',
+      declined: 'failed',
+      resubmission_requested: 'resubmission_requested',
+      expired: 'failed',
+      abandoned: 'failed',
+    };
+    const kycStatus = statusMap[decision] ?? 'failed';
+
+    const vendorData = v.vendorData;
+    if (!vendorData) return res.status(200).send('OK');
+
+    const landlords = getDB().collection('landlords');
+    const person = v.person || {};
+    const document = v.document || {};
+
+    const updateData = {
+      kycStatus,
+      name:
+        person.fullName ||
+        [person.firstName, person.lastName].filter(Boolean).join(' ') ||
+        undefined,
+      veriffData: {
+        decision,
+        firstName: person.firstName,
+        lastName: person.lastName,
+        fullName: person.fullName,
+        dateOfBirth: person.dateOfBirth,
+        address: document.address,
+        documentType: document.type,
+        documentNumber: document.number,
+        veriffId: v.id,
+      },
+      lastKycUpdate: new Date(),
+    };
+
+    // ✅ Acknowledge immediately (so Veriff won’t retry)
+    res.status(200).send('Webhook received.');
+
+    // Async post-processing
     try {
-        // Grab raw body (Buffer)
-        const raw = req.body; // Buffer, because we used express.raw
-        if (!Buffer.isBuffer(raw)) {
-            return res.status(400).send('Webhook must be application/json with raw body.');
-        }
-        const sigHeader =
-            req.headers['x-hmac-signature'] ||
-            req.headers['x-hmac'] ||
-            req.headers['x-signature'] ||
-            req.headers['x-hmac-signature'.toLowerCase()];
-
-        if (!sigHeader) {
-            return res.status(400).send('Missing signature header.');
-        }
-
-        const expected = hmacHex(VERIFF_SECRET_KEY, raw);
-        const valid = timingSafeEqualHex(expected, sigHeader);
-
-        if (!valid) {
-            return res.status(403).send('Invalid signature.');
-        }
-
-        let event;
-        try {
-            event = JSON.parse(raw.toString('utf8'));
-        } catch {
-            return res.status(400).send('Invalid JSON.');
-        }
-        const v = event?.verification;
-        if (!v) {
-            console.warn('Webhook received without verification object:', event);
-            return res.status(200).send('OK');
-        }
-        const decision = v.status; // e.g., 'approved', 'resubmission_requested', 'declined'
-        const kycStatus = decision === 'approved' ? 'approved' : 'failed';
-
-        // Extract fields safely
-        const person = v.person || {};
-        const document = v.document || {};
-        const vendorData = v.vendorData; // we stored landlordId here
-
-        if (!vendorData) {
-            console.warn('Webhook missing vendorData:', event);
-            return res.status(200).send('OK');
-        }
-
-        const landlords = getDB().collection('landlords');
-
-        const updateData = {
-            kycStatus,
-            name: person.fullName || [person.firstName, person.lastName].filter(Boolean).join(' ') || undefined,
-            veriffData: {
-                decision,
-                firstName: person.firstName,
-                lastName: person.lastName,
-                fullName: person.fullName,
-                dateOfBirth: person.dateOfBirth,
-                address: document.address,
-                documentType: document.type,
-                documentNumber: document.number,
-            },
-            lastKycUpdate: new Date(),
-        };
-
-        await landlords.updateOne(
-            { _id: new ObjectId(String(vendorData)) },
-            { $set: updateData }
-        );
-
-        return res.status(200).send('Webhook received.');
-    } catch (error) {
-        console.error('Veriff webhook error:', {
-            message: error.message,
-            stack: error.stack,
+      await landlords.updateOne({ _id: new ObjectId(String(vendorData)) }, { $set: updateData });
+      const landlord = await landlords.findOne({ _id: new ObjectId(String(vendorData)) });
+      if (landlord?.email) {
+        await sendKycEmail(landlord, kycStatus, {
+          FRONTEND_URL: process.env.FRONTEND_URL,
+          LOGO_URL: 'https://blocklease.site/assets/logo.png',
         });
-        return res.status(500).send('Server error processing webhook.');
+      }
+    } catch (e) {
+      console.error('Webhook post-processing error:', e);
     }
+  } catch (error) {
+    console.error('Veriff webhook error:', error);
+    res.status(500).send('Server error processing webhook.');
+  }
 });
 
 
