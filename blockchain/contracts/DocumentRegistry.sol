@@ -3,37 +3,30 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-
-contract DocumentRegistry is Ownable { 
+contract DocumentRegistry is Ownable {
 
     // --- State Variables ---
-
-    struct Document {
-        bytes32 docHash;
-        string landlordName;
-        string unitInfo;
-        string tenantName;
-        string from;
-        string to;
-        uint256 timestamp;
-        bool isVerified;
-    }
-
-    mapping(bytes32 => Document) public documents;
+    // This is much more gas-efficient.
+    // We map the docHash to the timestamp it was verified.
+    // If the timestamp is 0, it is not verified.
+    mapping(bytes32 => uint256) public documentTimestamps;
 
     // --- Events ---
-
+    // We can still emit all the data. Events are cheap "logs," not expensive storage.
     event DocumentVerified(
         bytes32 indexed docHash, 
         string landlordName, 
-        string unitInfo
+        string unitInfo,
+        string tenantName,
+        string from,
+        string to,
+        uint256 timestamp
     );
 
     constructor() Ownable(msg.sender) {}
 
-
     // --- Functions ---
-
+    
     function addDocument(
         bytes32 _docHash, 
         string calldata _landlordName, 
@@ -41,37 +34,28 @@ contract DocumentRegistry is Ownable {
         string calldata _tenantName,
         string calldata _from,
         string calldata _to
-    ) public onlyOwner { // This will now compile correctly
-        require(!documents[_docHash].isVerified, "Document already verified");
+    ) public onlyOwner {
+        require(documentTimestamps[_docHash] == 0, "Document already verified");
 
-        documents[_docHash] = Document({
-            docHash: _docHash,
-            landlordName: _landlordName,
-            unitInfo: _unitInfo,
-            tenantName: _tenantName,
-            from:_from,
-            to:_to,
-            timestamp: block.timestamp,
-            isVerified: true
-        });
+        // The ONLY storage write. This is a huge gas saving.
+        documentTimestamps[_docHash] = block.timestamp;
 
-        emit DocumentVerified(_docHash, _landlordName, _unitInfo);
+        emit DocumentVerified(
+            _docHash, 
+            _landlordName, 
+            _unitInfo, 
+            _tenantName, 
+            _from, 
+            _to, 
+            block.timestamp
+        );
     }
 
-    function getDocument(bytes32 _docHash) 
+    function getDocumentTimestamp(bytes32 _docHash) 
         public 
         view 
-        returns (bool, string memory, string memory,string memory,string memory,string memory, uint256) 
+        returns (uint256) 
     {
-        Document storage doc = documents[_docHash];
-        return (
-            doc.isVerified,
-            doc.landlordName,
-            doc.unitInfo,
-            doc.tenantName,
-            doc.from,
-            doc.to,
-            doc.timestamp
-        );
+        return documentTimestamps[_docHash];
     }
 }
