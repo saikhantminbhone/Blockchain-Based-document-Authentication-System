@@ -30,11 +30,7 @@ const {
 const app = express();
 
 // --- Global Middleware ---
-// Increase payload limit to accept large file uploads (e.g., camera scans)
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
-// Veriff webhook requires a raw body, so it must be defined before express.json()
-app.use('/api/veriff/webhook', express.raw({ type: 'application/json' }));
+
 app.use(cors({ origin: "*" }));
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -310,7 +306,7 @@ app.post('/api/auth/google', async (req, res) => {
 
         const appPayload = { landlordId: landlord._id.toString(), email: landlord.email, name: landlord.name };
         const appToken = jwt.sign(appPayload, JWT_SECRET, { expiresIn: '8h' });
-
+console.log(appToken)
         res.status(200).json({
             status: 'success', message: 'Google sign-in successful!', token: appToken,
             landlord: { id: landlord._id, name: landlord.name, kycStatus: landlord.kycStatus },
@@ -523,27 +519,52 @@ async function sendKycEmail(landlord, kycStatus, { FRONTEND_URL, LOGO_URL }) {
 }
 
 // --- Express webhook route (with raw parser) ---
-app.post('/api/veriff/webhook', webhookRaw, async (req, res) => {
-  try {
-    const raw = req.body;
-    if (!Buffer.isBuffer(raw)) return res.status(400).send('Webhook must be raw JSON');
 
-    const sigHeader = req.headers['x-hmac-signature'];
+app.post('/api/veriff/webhook', webhookRaw, async (req, res) => {
+  console.log('[WEBHOOK]', 
+    'isBuffer=', Buffer.isBuffer(req.body),
+    'ctor=', req.body?.constructor?.name,
+    'len=', req.body?.length,
+    'ct=', req.headers['content-type']
+  );
+
+  try {
+    // 0) Normalize to Buffer (be forgiving if a different parser touched it)
+    let raw;
+    if (Buffer.isBuffer(req.body)) raw = req.body;
+    else if (typeof req.body === 'string') raw = Buffer.from(req.body, 'utf8');
+    else raw = Buffer.from(JSON.stringify(req.body || {}), 'utf8');
+
+    // 1) Signature header (Veriff may send either)
+    const sigHeader = (req.headers['x-hmac-signature'] || req.headers['x-signature'] || '').toString().trim();
     if (!sigHeader) return res.status(400).send('Missing signature header');
 
-    // Verify HMAC (use buffer-safe comparison)
-    const expected = crypto.createHmac('sha256', VERIFF_SECRET_KEY).update(raw).digest('hex');
-    const valid =
-      Buffer.from(expected, 'hex').length === Buffer.from(sigHeader.trim(), 'hex').length &&
-      crypto.timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(sigHeader.trim(), 'hex'));
+    if (!process.env.VERIFF_SECRET_KEY) {
+      console.error('⚠️ VERIFF_SECRET_KEY is not set');
+      return res.status(500).send('Server misconfiguration');
+    }
 
-    if (!valid) return res.status(403).send('Invalid signature');
+    // 2) HMAC verification on the exact raw bytes
+    const expectedHex = crypto.createHmac('sha256', process.env.VERIFF_SECRET_KEY).update(raw).digest('hex');
+    const a = Buffer.from(expectedHex, 'hex');
+    const b = Buffer.from(sigHeader, 'hex');
 
-    const event = JSON.parse(raw.toString('utf8'));
+    // TEMP: small debug; remove once verified
+    console.log('[HMAC]', expectedHex.slice(0, 16), '… vs …', sigHeader.slice(0, 16), 'len=', expectedHex.length);
+
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      return res.status(403).send('Invalid signature');
+    }
+
+    // 3) Parse AFTER HMAC
+    let event;
+    try { event = JSON.parse(raw.toString('utf8')); }
+    catch { return res.status(400).send('Invalid JSON'); }
+
     const v = event?.verification;
     if (!v) return res.status(200).send('OK');
 
-    const decision = v.status; // 'approved' | 'declined' | 'resubmission_requested' | ...
+    // 4) Map Veriff status to your KYC status
     const statusMap = {
       approved: 'approved',
       declined: 'failed',
@@ -551,61 +572,101 @@ app.post('/api/veriff/webhook', webhookRaw, async (req, res) => {
       expired: 'failed',
       abandoned: 'failed',
     };
+    const decision = v.status; // e.g., "approved"
     const kycStatus = statusMap[decision] ?? 'failed';
 
-    const vendorData = v.vendorData;
+    // 5) Identify landlord from vendorData
+    const vendorData = v.vendorData; // "68fe1962322e00bc9e772f76" in your sample
     if (!vendorData) return res.status(200).send('OK');
 
-    const landlords = getDB().collection('landlords');
-    const person = v.person || {};
-    const document = v.document || {};
-
-    const updateData = {
-      kycStatus,
-      name:
-        person.fullName ||
-        [person.firstName, person.lastName].filter(Boolean).join(' ') ||
-        undefined,
-      veriffData: {
-        decision,
-        firstName: person.firstName,
-        lastName: person.lastName,
-        fullName: person.fullName,
-        dateOfBirth: person.dateOfBirth,
-        address: document.address,
-        documentType: document.type,
-        documentNumber: document.number,
-        veriffId: v.id,
-      },
-      lastKycUpdate: new Date(),
-    };
-
-    // ✅ Acknowledge immediately (so Veriff won’t retry)
+    // 6) ACK EARLY so Veriff won’t retry
     res.status(200).send('Webhook received.');
 
-    // Async post-processing
-    try {
-      await landlords.updateOne({ _id: new ObjectId(String(vendorData)) }, { $set: updateData });
-      const landlord = await landlords.findOne({ _id: new ObjectId(String(vendorData)) });
-      if (landlord?.email) {
-        await sendKycEmail(landlord, kycStatus, {
-          FRONTEND_URL: process.env.FRONTEND_URL,
-          LOGO_URL: 'https://blocklease.site/assets/logo.png',
-        });
+    // 7) Async post-processing: update DB + email
+    (async () => {
+      try {
+        // Optional idempotency: avoid re-processing the same verification.id
+        try {
+          await getDB().collection('veriff_events').insertOne({
+            _id: v.id,                  // e.g., "3991eafe-f035-44c0-87c6-575d84004084"
+            decision: v.status,
+            receivedAt: new Date(),
+          });
+        } catch (dup) {
+          if (dup?.code === 11000) {
+            console.log('ℹ️ Duplicate event ignored:', v.id);
+            return;
+          }
+          throw dup;
+        }
+
+        // Prepare update
+        const person = v.person || {};
+        const document = v.document || {};
+        const updateData = {
+          kycStatus,                                     // "approved" in your sample
+          name: person.fullName ||
+                [person.firstName, person.lastName].filter(Boolean).join(' ') ||
+                undefined,                               // => "Sai Khant Min Bhone"
+          veriffData: {
+            decision: v.status,                          // "approved"
+            firstName: person.firstName,                 // "Sai"
+            lastName: person.lastName,                   // "Khant Min Bhone"
+            fullName: person.fullName,                   // might be undefined in sample
+            dateOfBirth: person.dateOfBirth,
+            address: document.address,                   // not present in sample
+            documentType: document.type,                 // "DRIVERS_LICENSE"
+            documentNumber: document.number,             // null
+            country: document.country,                   // "TH"
+            veriffId: v.id,
+            decisionTime: v.decisionTime,                // present in sample
+            submissionTime: v.submissionTime,
+            acceptanceTime: v.acceptanceTime,
+            attemptId: v.attemptId,
+          },
+          lastKycUpdate: new Date(),
+        };
+
+        // Defensively coerce ObjectId
+        let landlordObjectId;
+        try {
+          landlordObjectId = new ObjectId(String(vendorData));
+        } catch {
+          console.error('⚠️ vendorData is not a valid ObjectId:', vendorData);
+          return;
+        }
+
+        const landlords = getDB().collection('landlords');
+        await landlords.updateOne({ _id: landlordObjectId }, { $set: updateData });
+
+        const landlord = await landlords.findOne({ _id: landlordObjectId });
+        if (landlord?.email) {
+          await sendKycEmail(landlord, kycStatus, {
+            FRONTEND_URL: process.env.FRONTEND_URL,
+            LOGO_URL: 'https://blocklease.site/assets/logo.png',
+          });
+        }
+      } catch (e) {
+        console.error('Webhook post-processing error:', e);
       }
-    } catch (e) {
-      console.error('Webhook post-processing error:', e);
-    }
-  } catch (error) {
-    console.error('Veriff webhook error:', error);
-    res.status(500).send('Server error processing webhook.');
+    })();
+  } catch (err) {
+    console.error('Veriff webhook error:', err);
+    if (!res.headersSent) res.status(500).send('Server error processing webhook.');
   }
 });
+
 
 
 // ##################################################################
 // ### UNIT MANAGEMENT (WITH CUSTOM AI)
 // ##################################################################
+
+// Increase payload limit to accept large file uploads (e.g., camera scans)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+
 app.post('/api/units', authMiddleware, upload.fields([
     { name: 'titleDeed', maxCount: 1 },
     { name: 'utilityBill', maxCount: 1 }
