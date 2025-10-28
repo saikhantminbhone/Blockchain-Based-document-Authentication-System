@@ -3,12 +3,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { loginLandlord, loginWithGoogle, resendVerificationEmail } from '../services/api';
 import Button from '../components/ui/Button';
-import { showSuccessToast, showErrorToast } from '../components/Notifications'; 
+import { showSuccessToast, showErrorToast } from '../components/Notifications';
 import { GoogleLogin } from '@react-oauth/google';
+import { Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState({ message: '', showResend: false });
     const { login } = useAuth();
@@ -73,28 +75,50 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="flex items-center justify-center pt-10">
-            <div className="w-full max-w-md p-8 space-y-4 bg-card rounded-xl shadow-lg">
+        <div className="flex items-center justify-center h-full px-4">
+            <div className="w-full max-w-md p-8 space-y-4 bg-card rounded-xl shadow-lg min-h-[460px]">
                 <h2 className="text-3xl font-bold text-center">Welcome Back</h2>
                 
-                <form onSubmit={handleEmailSubmit} className="space-y-3">
-                    <input
-                        type="email"
-                        placeholder="Email Address"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                        className="w-full px-4 py-2 border rounded-md"
-                    />
-                    <input
-                        type="password"
-                        placeholder="Password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        className="w-full px-4 py-2 border rounded-md"
-                    />
+                <form onSubmit={handleEmailSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-text-secondary mb-1">Email Address</label>
+                        <input
+                            type="email"
+                            placeholder="Email Address"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            required
+                            className="w-full px-4 py-2 border rounded-md"
+                        />
+                    </div>
                     
+                    <div>
+                        <label className="block text-sm font-medium text-text-secondary mb-1">Password</label>
+                        <div className="relative">
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                placeholder="Password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                                className="w-full px-4 py-2 border rounded-md"
+                            />
+                            <button 
+                                type="button" 
+                                onClick={() => setShowPassword(!showPassword)} 
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
+                            >
+                                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div className="flex justify-end">
+                        <Link to="/forgot-password" className="text-sm font-medium text-primary hover:underline">
+                            Forgot Password?
+                        </Link>
+                    </div>
+
                     {error.message && (
                         <div className="text-sm text-error text-center">
                             {error.message}

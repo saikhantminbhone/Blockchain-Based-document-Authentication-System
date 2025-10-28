@@ -38,6 +38,7 @@ export default function UnitListItem({ unit, contracts, onVerifyClick, onPreview
     };
 
     const handleArchive = async (unitId) => {
+        console.log(unitId)
         setIsLoading(true);
         try {
             const result = await archiveUnit(unitId);

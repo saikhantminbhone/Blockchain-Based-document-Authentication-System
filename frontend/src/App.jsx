@@ -19,6 +19,8 @@ import BlogPage from './pages/BlogPage.jsx';
 import ContactPage from './pages/ContactPage.jsx';
 import VerifyEmailPage from './pages/VerifyEmailPage.jsx';
 import KycSubmittedPage from './pages/KycSubmittedPage.jsx';
+import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx';
+import ResetPasswordPage from './pages/ResetPasswordPage.jsx';
 
 
 function App() {
@@ -39,6 +41,8 @@ function App() {
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
               <Route path="/verify/:docHash" element={<VerificationPage />} />
               <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
 

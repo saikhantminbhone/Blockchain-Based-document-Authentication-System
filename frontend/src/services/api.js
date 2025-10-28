@@ -30,6 +30,16 @@ export const loginWithGoogle = async (googleToken) => {
     return data;
 };
 
+export const forgotPassword = async (email) => {
+    const { data } = await api.post('/forgot-password', { email });
+    return data;
+};
+
+export const resetPassword = async (token, password) => {
+    const { data } = await api.post('/reset-password', { token, password });
+    return data;
+};
+
 // --- USER & DASHBOARD ---
 export const getMyLandlordProfile = async () => {
     const { data } = await api.get('/landlord/me');

@@ -144,7 +144,7 @@ async function AiextractUtilityBillData(fileBuffer, mimeType) {
         const jsonString = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
         const extractedData = JSON.parse(jsonString);
         console.log(`📄 Gemini extracted utility bill data:`, extractedData);
-        return extractedData;
+        return 'extractedData';
     } catch (error) {
         console.error("❌ Error with Gemini utility bill extraction:", error);
         throw new Error("AI utility bill analysis failed.");
