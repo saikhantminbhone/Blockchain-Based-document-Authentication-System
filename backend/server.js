@@ -846,49 +846,91 @@ app.post('/api/units', authMiddleware, upload.fields([
 ]), async (req, res) => {
   try {
     const { unitNumber, floor, streetAddress, subdistrict, district, province, zipCode, country, isConfirmed } = req.body;
-    const titleDeedFile = req.files['titleDeed']?.[0];
-    const utilityBillFile = req.files['utilityBill']?.[0];
+    const titleDeedFile = req.files?.titleDeed?.[0];
+    const utilityBillFile = req.files?.utilityBill?.[0];
+
     if (!titleDeedFile || !utilityBillFile) {
-      return res.status(400).json({ status: 'error', message: "Both a Title Deed and a recent Utility Bill are required." });
+      return res.status(400).json({
+        status: 'error',
+        message: 'Both a Title Deed and a recent Utility Bill are required.',
+        hint: 'Upload one clear image for each.'
+      });
     }
 
-    const [deedData, billData] = await Promise.all([
+    // --- AI extraction with friendly error forwarding ---
+    const [deedData, billData] = await Promise.allSettled([
       AiExtractDeedData(titleDeedFile.buffer, titleDeedFile.mimetype),
       AiextractUtilityBillData(utilityBillFile.buffer, utilityBillFile.mimetype)
     ]);
 
-    const landlord = await getDB().collection('landlords').findOne({ _id: req.landlordId });
-
-    // 3-way name match
-    if (
-      landlord.name.toLowerCase() !== (deedData.ownerName || '').toLowerCase() ||
-      landlord.name.toLowerCase() !== (billData.nameOnBill || '').toLowerCase()
-    ) {
-      return res.status(403).json({ status: 'error', message: `Ownership Mismatch: The name on the documents (${deedData.ownerName}, ${billData.nameOnBill}) does not match your verified profile name (${landlord.name}).` });
+    if (deedData.status === 'rejected' && deedData.reason?.expose) {
+      return res.status(deedData.reason.status).json({
+        status: 'error',
+        code: deedData.reason.code,
+        message: deedData.reason.message,
+        hint: deedData.reason.hint,
+        field: deedData.reason.field
+      });
     }
-
-    // Address match between docs
-    if (!await AiCompareAddresses(deedData.propertyAddress, billData.addressOnBill)) {
-      return res.status(400).json({ status: 'error', message: "Address Mismatch: The address on the title deed does not match the address on the utility bill." });
-    }
-
-    // Compare user input vs deed address
-    const userInputAddress = `${streetAddress}, ${subdistrict}, ${district}, ${province}, ${zipCode}`;
-    const aiAddress = deedData.propertyAddress;
-    const isMatch = await AiCompareAddresses(userInputAddress, aiAddress);
-
-    if (!isMatch && !isConfirmed) {
-      return res.status(200).json({
-        status: 'address_mismatch',
-        message: 'The address you entered does not exactly match the one on the title deed.',
-        userInputAddress,
-        aiSuggestedAddress: aiAddress,
+    if (billData.status === 'rejected' && billData.reason?.expose) {
+      return res.status(billData.reason.status).json({
+        status: 'error',
+        code: billData.reason.code,
+        message: billData.reason.message,
+        hint: billData.reason.hint,
+        field: billData.reason.field
       });
     }
 
-    const titleDeedS3Key = await uploadFileToS3(titleDeedFile.buffer, 'verified-title-deeds', titleDeedFile.originalname);
-    const utilityBillS3Key = await uploadFileToS3(utilityBillFile.buffer, 'verified-utility-bills', utilityBillFile.originalname);
+    if (deedData.status !== 'fulfilled' || billData.status !== 'fulfilled')
+      throw new Error('AI extraction failed unexpectedly.');
 
+    const deed = deedData.value;
+    const bill = billData.value;
+
+    // --- Verification ---
+    const landlord = await getDB().collection('landlords').findOne({ _id: req.landlordId });
+    const profile = (landlord?.name || '').toLowerCase();
+
+    if (profile !== (deed.ownerName || '').toLowerCase() ||
+        profile !== (bill.nameOnBill || '').toLowerCase()) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Ownership Mismatch.',
+        hint: 'Ensure your account name matches both documents.'
+      });
+    }
+
+    const sameAddress = await AiCompareAddresses(deed.propertyAddress, bill.addressOnBill);
+    if (!sameAddress) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Address Mismatch between deed and bill.',
+        hint: 'Upload documents showing the same property.'
+      });
+    }
+
+    // --- Address confirmation check ---
+    const userInputAddress = `${streetAddress}, ${subdistrict}, ${district}, ${province}, ${zipCode}`;
+    const addressMatch = await AiCompareAddresses(userInputAddress, deed.propertyAddress);
+
+    if (!addressMatch && !isConfirmed) {
+      return res.status(200).json({
+        status: 'address_mismatch',
+        message: 'Your entered address does not exactly match the title deed.',
+        userInputAddress,
+        aiSuggestedAddress: deed.propertyAddress,
+        hint: 'If correct, confirm and resubmit.'
+      });
+    }
+
+    // --- Upload to S3 ---
+    const [titleDeedS3Key, utilityBillS3Key] = await Promise.all([
+      uploadFileToS3(titleDeedFile.buffer, 'verified-title-deeds', titleDeedFile.originalname, titleDeedFile.mimetype),
+      uploadFileToS3(utilityBillFile.buffer, 'verified-utility-bills', utilityBillFile.originalname, utilityBillFile.mimetype)
+    ]);
+
+    // --- Save to DB ---
     const newUnit = {
       landlordId: req.landlordId,
       unitNumber,
@@ -897,18 +939,37 @@ app.post('/api/units', authMiddleware, upload.fields([
       titleDeedS3Key,
       utilityBillS3Key,
       isVerified: true,
-      verificationStatus: 'verified_by_ai_multi_doc',
-      aiExtractedData: { deedData, billData },
+      verificationStatus: `verified_by_ai_multi_doc_${bill.issuer}`,
+      aiExtractedData: { deed, bill },
       createdAt: new Date()
     };
 
     const result = await getDB().collection('units').insertOne(newUnit);
-    res.status(201).json({ status: 'success', message: "Unit created and verified successfully!", unit: { _id: result.insertedId, ...newUnit } });
+    return res.status(201).json({
+      status: 'success',
+      message: 'Unit created and verified successfully!',
+      unit: { _id: result.insertedId, ...newUnit }
+    });
+
   } catch (error) {
     console.error('Create unit error:', error);
-    res.status(500).json({ status: 'error', message: 'Server error while creating unit.' });
+    if (error?.expose) {
+      return res.status(error.status || 400).json({
+        status: 'error',
+        code: error.code,
+        message: error.message,
+        hint: error.hint,
+        field: error.field
+      });
+    }
+    return res.status(500).json({
+      status: 'error',
+      message: 'Unexpected server error. Please try again later.'
+    });
   }
 });
+
+
 
 async function uploadFileToS3(fileBuffer, folder, originalname, mimetype = '') {
   let body = fileBuffer;
