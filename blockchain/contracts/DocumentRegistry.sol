@@ -5,14 +5,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract DocumentRegistry is Ownable {
 
-    // --- State Variables ---
-    // This is much more gas-efficient.
-    // We map the docHash to the timestamp it was verified.
-    // If the timestamp is 0, it is not verified.
     mapping(bytes32 => uint256) public documentTimestamps;
-
-    // --- Events ---
-    // We can still emit all the data. Events are cheap "logs," not expensive storage.
     event DocumentVerified(
         bytes32 indexed docHash, 
         string landlordName, 
@@ -22,11 +15,9 @@ contract DocumentRegistry is Ownable {
         string to,
         uint256 timestamp
     );
-
     constructor() Ownable(msg.sender) {}
 
     // --- Functions ---
-    
     function addDocument(
         bytes32 _docHash, 
         string calldata _landlordName, 
@@ -39,7 +30,6 @@ contract DocumentRegistry is Ownable {
 
         // The ONLY storage write. This is a huge gas saving.
         documentTimestamps[_docHash] = block.timestamp;
-
         emit DocumentVerified(
             _docHash, 
             _landlordName, 

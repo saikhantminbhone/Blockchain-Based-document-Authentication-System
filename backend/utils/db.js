@@ -1,25 +1,33 @@
 const { MongoClient } = require('mongodb');
 
-require('dotenv').config();
+const { MONGODB_URI } = process.env;
+if (!MONGODB_URI) {
+    throw new Error('Please define the MONGODB_URI environment variable');
+}
 
-const uri = process.env.MONGODB_URI;
-const client = new MongoClient(uri);
-
+let client;
 let db;
 
-async function connectDB() {
-    try {
+const connectDB = async () => {
+    if (db) return db;
+    if (!client) {
+        client = new MongoClient(MONGODB_URI);
         await client.connect();
-        db = client.db("blocklease"); // You can name your database here
-        console.log("Successfully connected to MongoDB.");
-    } catch (error) {
-        console.error("Could not connect to MongoDB", error);
-        process.exit(1);
+        console.log("MongoDB connected for testing...");
     }
-}
-
-function getDB() {
+    db = client.db("blocklease"); 
     return db;
-}
+};
 
-module.exports = { connectDB, getDB };
+const getDB = () => db;
+
+const closeDB = async () => {
+    if (client) {
+        await client.close();
+        client = null;
+        db = null;
+        console.log("MongoDB connection closed.");
+    }
+};
+
+module.exports = { connectDB, getDB, closeDB };

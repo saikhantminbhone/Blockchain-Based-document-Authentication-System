@@ -347,7 +347,7 @@ app.post('/api/register-landlord', async (req, res) => {
       createdAt: new Date(),
     };
     await coll.insertOne(newLandlord);
-
+    console.log("Landlord acc creation success, email verification is required")
     const verificationUrl = `${FRONTEND_URL}/verify-email/${verificationToken}`;
     const subject = 'Verify Your Email Address for Block Lease';
 
@@ -384,6 +384,8 @@ app.post('/api/verify-email', async (req, res) => {
     if (new Date() > landlord.emailVerificationExpires) {
       return res.status(400).json({ status: 'error', message: "This verification link has expired. Please request a new one." });
     }
+
+    console.log("landloard email is now verified")
 
     await coll.updateOne(
       { _id: landlord._id },
@@ -620,6 +622,7 @@ app.get('/api/landlord/me', authMiddleware, async (req, res) => {
 // Veriff
 // ------------------------------------------------------------------
 app.post('/api/veriff/create-session', authMiddleware, async (req, res) => {
+  console.log("landlord KYC veriff start create the session")
   try {
     const { type } = req.body;
     if (type !== 'kyc') {
@@ -749,7 +752,7 @@ app.post('/api/veriff/webhook', async (req, res) => {
 
     let event;
     try { event = JSON.parse(raw.toString('utf8')); }
-    catch { return res.status(400).send('Invalid JSON'); }
+    catch { console.log(event); return res.status(400).send('Invalid JSON'); }
 
     const v = event?.verification;
     if (!v) return res.status(200).send('OK');
@@ -1243,7 +1246,7 @@ app.post('/api/approve-contract', authMiddleware, async (req, res) => {
       });
     }
 
-    // 3) Build canonical fingerprint + hash (this is your on-chain key)
+    // 3) Build canonical fingerprint + hash 
     const originalDetails = parseFingerprint(pending.fingerprint);
     const officialUnitInfo =
       `${unit.floor ? `Floor ${unit.floor}, ` : ''}${unit.unitNumber}, ${unit.address.streetAddress}, ${unit.address.district}`;
@@ -1651,6 +1654,11 @@ app.get('/api/s3/presigned-url', authMiddleware, async (req, res) => {
 // ------------------------------------------------------------------
 // Start
 // ------------------------------------------------------------------
-connectDB().then(() => {
-  app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
-});
+//for unit testing
+module.exports = { app, connectDB,getPresignedUrl };
+
+if (require.main === module) {
+  connectDB().then(() => {
+    app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+  });
+}
