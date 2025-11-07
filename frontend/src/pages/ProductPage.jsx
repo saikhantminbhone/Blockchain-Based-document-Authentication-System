@@ -63,7 +63,7 @@ export default function ProductPage() {
     <div className="space-y-24 md:space-y-32">
       {/* --- Hero Section --- */}
       <section className="text-center pt-10 pb-16">
-        <h1 className="text-4xl md:text-6xl font-extrabold text-text-primary mb-4">
+        <h1 className="text-4xl md:text-6xl font-extrabold text-text-secondary mb-4">
           The Platform for Verifiable Agreements
         </h1>
         <p className="max-w-3xl mx-auto text-lg text-text-secondary">

@@ -182,7 +182,7 @@ export default function HomePage() {
   return (
     <div className="space-y-24 md:space-y-32">
       <section className="text-center pt-10 pb-20">
-        <h1 className="text-4xl md:text-6xl font-extrabold text-text-primary mb-4">
+        <h1 className="text-4xl md:text-6xl font-extrabold text-text-secondary mb-4">
           Immutable Trust for Every Document
         </h1>
         <p className="max-w-3xl mx-auto text-lg text-text-secondary mb-10">

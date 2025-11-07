@@ -38,7 +38,7 @@ export default function Header() {
           {!isAuthenticated && (
             <NavLink
               to="/register"
-              className="bg-primary text-white text-sm font-semibold rounded-xl px-6 py-2.5 hover:bg-hover-blue transition-colors duration-200 shadow-md hover:shadow-lg"
+              className="bg-primary text-white text-sm font-semibold rounded-md px-6 py-2.5 hover:bg-hover-blue transition-colors duration-200 shadow-md hover:shadow-lg"
             >
              Register
             </NavLink>
@@ -48,7 +48,7 @@ export default function Header() {
           {isAuthenticated && (
             <button
               onClick={handleLogout}
-              className="bg-primary text-white text-sm font-semibold rounded-xl px-6 py-2.5 hover:bg-hover-blue transition-colors duration-200 shadow-md hover:shadow-lg"
+              className="bg-primary text-white text-sm font-semibold rounded-md px-6 py-2.5 hover:bg-hover-blue transition-colors duration-200 shadow-md hover:shadow-lg"
             >
               Logout
             </button>
@@ -88,7 +88,7 @@ export default function Header() {
               </NavLink>
               <button
                 onClick={handleLogout}
-                className="bg-primary text-white text-sm font-semibold rounded-xl px-4 py-2 hover:bg-hover-blue transition-colors duration-200 shadow-md hover:shadow-lg"
+                className="bg-primary text-white text-sm font-semibold rounded-md px-4 py-2 hover:bg-hover-blue transition-colors duration-200 shadow-md hover:shadow-lg"
               >
                 Logout
               </button>
@@ -100,7 +100,7 @@ export default function Header() {
               </NavLink>
               <NavLink
                 to="/register"
-                className="bg-primary text-white text-sm font-semibold rounded-xl px-4 py-2 hover:bg-hover-blue transition-colors duration-200 shadow-md hover:shadow-lg"
+                className="bg-primary text-white text-sm font-semibold rounded-md px-4 py-2 hover:bg-hover-blue transition-colors duration-200 shadow-md hover:shadow-lg"
               >
                 Landlord Register 
               </NavLink>
@@ -138,7 +138,7 @@ export default function Header() {
               <NavLink
                 to="/register"
                 onClick={() => setIsOpen(false)}
-                className="block text-center bg-primary text-white text-sm font-semibold rounded-xl px-4 py-2 hover:bg-hover-blue transition-colors duration-200 shadow-md hover:shadow-lg"
+                className="block text-center bg-primary text-white text-sm font-semibold rounded-md px-4 py-2 hover:bg-hover-blue transition-colors duration-200 shadow-md hover:shadow-lg"
               >
                 Landlord Register 
               </NavLink>

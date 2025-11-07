@@ -24,6 +24,7 @@ export default function VerificationPage() {
     const [error, setError] = useState('');
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+    const [isFingerprintVisible, setIsFingerprintVisible] = useState(false);
 
     useEffect(() => {
         if (docHash) {
@@ -110,9 +111,42 @@ export default function VerificationPage() {
                     
 
 
-                    {/* --- 4. The Blockchain Seal --- */}
+                    {/* --- 4. The Blockchain Seal--- */}
                     <div className="mt-4 p-4 bg-background rounded-lg">
-                        {/* ... Blockchain Proof Section (Unchanged) ... */}
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center text-sm font-semibold text-text-primary">
+                                <FileText className="w-4 h-4 mr-2" />
+                                <span>Blockchain Proof</span>
+                            </div>
+                            <Button onClick={() => setIsFingerprintVisible(!isFingerprintVisible)} variant="secondary" className="p-1 h-auto text-xs inline-flex items-center gap-1">
+                                {isFingerprintVisible ? <ChevronUp size={12}/> : <ChevronDown size={12}/>}
+                                {isFingerprintVisible ? 'Hide Details' : 'Show Details'}
+                            </Button>
+                        </div>
+                        {isFingerprintVisible && (
+                            <div className="mt-4 pt-4 border-t border-text-muted/20 space-y-4">
+                                <div>
+                                    <p className="text-xs font-semibold text-text-muted">RAW FINGERPRINT</p>
+                                    <p className="mt-1 font-mono text-xs text-text-muted break-all">{data.fingerprint}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-semibold text-text-muted">BLOCKCHAIN HASH (docHash)</p>
+                                    <div className="flex items-center gap-2">
+                                        <p className="mt-1 font-mono text-xs text-text-muted break-all flex-1">{docHash}</p>
+                                        <Button onClick={() => handleCopy(docHash)} variant="secondary" className="p-1 h-6 text-xs"><Copy size={12}/></Button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-semibold text-text-muted">TRANSACTION HASH (txHash)</p>
+                                    <div className="flex items-center gap-2">
+                                        <p className="mt-1 font-mono text-xs text-text-muted break-all flex-1">{data.onChainDetails.txHash}</p>
+                                        <a href={`https://amoy.polygonscan.com/tx/${data.onChainDetails.txHash}`} target="_blank" rel="noopener noreferrer">
+                                            <Button variant="secondary" className="p-1 h-6 text-xs"><ExternalLink size={12}/></Button>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

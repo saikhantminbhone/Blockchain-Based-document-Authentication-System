@@ -24,7 +24,6 @@ sharpLib = require('sharp');
 
 const {
   AiScanContract,
-  AiCheckDocumentAuthenticity,
   AiExtractDeedData,
   AiCompareAddresses,
   AiFindBestUnitMatch,
@@ -92,7 +91,11 @@ const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 // ------------------------------------------------------------------
 const BRAND = {
   logoUrl: 'https://blocklease.site/assests/logo.png',
-  primary: '#1E3A8A',   // << primary for all CTAs
+  primary: '#1E3A8A',
+  accent: '#3B82F6',
+  success: '#059669',
+  warning: '#D97706',
+  danger:  '#DC2626',
   bg: '#F9FAFB',
   card: '#FFFFFF',
   text: '#111827',
@@ -102,7 +105,6 @@ const BRAND = {
 
 /**
  * Bulletproof single-element CTA with Outlook VML fallback.
- * No nested tables (prevents invisible overlay issues in some clients).
  */
 function renderButton(href, label) {
   const bg = BRAND.primary;
@@ -139,9 +141,7 @@ function renderButton(href, label) {
 }
 
 /**
- * Unified email shell. Important resets added to avoid overlays:
- *  - table { border-collapse: separate } prevents weird click masks
- *  - img { display:block } prevents image link wrappers from overlaying CTAs
+ * Unified email shell.
  */
 function renderEmail({ title, intro, bodyHtml, button, footerNote }) {
   return `
@@ -154,7 +154,7 @@ function renderEmail({ title, intro, bodyHtml, button, footerNote }) {
     <style>
       html,body { margin:0 !important; padding:0 !important; }
       img { border:0; outline:none; text-decoration:none; display:block; height:auto; }
-      table { border-collapse: separate !important; } /* critical for clickability */
+      table { border-collapse: separate !important; }
       a { text-decoration:none; }
       @media (max-width:600px){ .container{width:100% !important; padding:16px !important;} }
     </style>
@@ -213,7 +213,6 @@ function renderEmail({ title, intro, bodyHtml, button, footerNote }) {
   `;
 }
 
-
 function splitName(fullName = '') {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return { firstName: 'Unknown', lastName: undefined };
@@ -234,44 +233,65 @@ async function getPresignedUrl(s3Key) {
     ResponseContentDisposition: 'inline'
   });
   try {
-    return await getSignedUrl(s3, command, { expiresIn: 3600 }); // 1h typical
+    return await getSignedUrl(s3, command, { expiresIn: 3600 }); // 1h
   } catch (err) {
     console.error(`❌ Presign error for ${s3Key}:`, err);
     return null;
   }
 }
 
-
 async function normalizeImageToPng(buffer, mimetype = '', originalname = '') {
   const looksHeic =
     /heic|heif/i.test(mimetype || '') ||
     /\.hei[c|f]$/i.test(originalname || '');
 
-  // HEIC/HEIF path: use heic-convert (doesn't require libheif on OS)
   if (looksHeic) {
     const convert = require('heic-convert');
     const out = await convert({ buffer, format: 'PNG', quality: 1 });
     return { buffer: out, ext: 'png', contentType: 'image/png' };
   }
 
-  // Non-HEIC images -> sharp if available
   if (sharpLib) {
     try {
       const out = await sharpLib(buffer)
-        .rotate()                 // respect EXIF orientation
+        .rotate()
         .png({ compressionLevel: 9 })
         .toBuffer();
       return { buffer: out, ext: 'png', contentType: 'image/png' };
-    } catch (e) {
-      // Fall through to generic sniff below
-    }
+    } catch (e) { /* fall through */ }
   }
 
-  // Last resort: keep as-is but detect type
   const ft = await fileTypeFromBuffer(buffer);
   const contentType = ft?.mime || mimetype || 'application/octet-stream';
   const ext = ft?.ext || mime.extension(contentType) || 'bin';
   return { buffer, ext, contentType };
+}
+
+// ---- Canonical normalisation helpers (avoid hash drift due to casing/spacing) ----
+const normalise = (s) => (s ?? '')
+  .toString()
+  .trim()
+  .replace(/\s+/g, ' ')
+  .toLowerCase();
+
+/** Build the canonical fingerprint (lowercased) used for hashing */
+function buildCanonicalFingerprint({ landlord, tenant, unit, from, to, rent }) {
+  return `Landlord: ${normalise(landlord)} | ` +
+         `Tenant: ${normalise(tenant)} | ` +
+         `Unit: ${normalise(unit)} | ` +
+         `From: ${(from ?? '').toString().trim()} | ` +
+         `To: ${(to ?? '').toString().trim()} | ` +
+         `Rent: ${(rent ?? '').toString().trim()}`;
+}
+
+/** Build a display fingerprint (preserve case) */
+function buildDisplayFingerprint({ landlord, tenant, unit, from, to, rent }) {
+  return `Landlord: ${(landlord ?? '').toString().trim()} | ` +
+         `Tenant: ${(tenant ?? '').toString().trim()} | ` +
+         `Unit: ${(unit ?? '').toString().trim()} | ` +
+         `From: ${(from ?? '').toString().trim()} | ` +
+         `To: ${(to ?? '').toString().trim()} | ` +
+         `Rent: ${(rent ?? '').toString().trim()}`;
 }
 
 /** AI fingerprint parser */
@@ -312,6 +332,9 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
+// helper: escape for regex (used in landlord lookups)
+const escapeRegex = (s = '') => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 // ------------------------------------------------------------------
 // Auth & Registration
 // ------------------------------------------------------------------
@@ -347,7 +370,7 @@ app.post('/api/register-landlord', async (req, res) => {
       createdAt: new Date(),
     };
     await coll.insertOne(newLandlord);
-    console.log("Landlord acc creation success, email verification is required")
+
     const verificationUrl = `${FRONTEND_URL}/verify-email/${verificationToken}`;
     const subject = 'Verify Your Email Address for Block Lease';
 
@@ -356,7 +379,7 @@ app.post('/api/register-landlord', async (req, res) => {
       intro: `Hello ${name},`,
       bodyHtml: `<p style="margin:0 0 8px;color:${BRAND.textMuted}">Thanks for registering with Block Lease. Click the button below to verify your email address. This link is valid for <strong>15 minutes</strong>.</p>`,
       button: { href: verificationUrl, label: 'Verify Email Address' },
-      footerNote: `<small>If the button doesn’t work, copy and paste this URL into your browser:<br><a href="${verificationUrl}" style="color:#3B82F6;">${verificationUrl}</a></small>`
+      footerNote: `<small>If the button doesn’t work, copy and paste this URL into your browser:<br><a href="${verificationUrl}" style="color:${BRAND.accent};">${verificationUrl}</a></small>`
     });
 
     await sendEmail({ to: lowerEmail, subject, html });
@@ -384,8 +407,6 @@ app.post('/api/verify-email', async (req, res) => {
     if (new Date() > landlord.emailVerificationExpires) {
       return res.status(400).json({ status: 'error', message: "This verification link has expired. Please request a new one." });
     }
-
-    console.log("landloard email is now verified")
 
     await coll.updateOne(
       { _id: landlord._id },
@@ -472,7 +493,7 @@ app.post('/api/forgot-password', async (req, res) => {
       title: 'Password reset request',
       intro: `Hello ${landlord.name},`,
       bodyHtml: `<p style="margin:0 0 8px;color:${BRAND.textMuted}">We received a request to reset your password. Click the button below to securely create a new password. This link will expire in <strong>10 minutes</strong>.</p>`,
-      button: { href: resetUrl, label: 'Reset Your Password', bg: BRAND.accent },
+      button: { href: resetUrl, label: 'Reset Your Password' },
       footerNote: `<small>If you did not request this, you can safely ignore this email.</small>`
     });
 
@@ -580,12 +601,10 @@ app.post('/api/login-landlord', async (req, res) => {
       return res.status(403).json({ status: 'error', message: "Your email is not verified. Please check your inbox.", errorCode: 'EMAIL_NOT_VERIFIED' });
     }
 
-    // If account created via Google (no password), redirect to Google sign-in
     if (!landlord.password) {
       return res.status(403).json({ status: 'error', message: "This account uses Google Sign-In. Please log in with Google.", errorCode: 'GOOGLE_ONLY' });
     }
 
-    // Allow 'pending' to log in; block others except approved.
     if (landlord.kycStatus !== 'approved' && landlord.kycStatus !== 'pending') {
       return res.status(403).json({ status: 'error', message: `Account not active. KYC status: ${landlord.kycStatus}.`, kycStatus: landlord.kycStatus });
     }
@@ -622,7 +641,7 @@ app.get('/api/landlord/me', authMiddleware, async (req, res) => {
 // Veriff
 // ------------------------------------------------------------------
 app.post('/api/veriff/create-session', authMiddleware, async (req, res) => {
-  console.log("landlord KYC veriff start create the session")
+  console.log("landlord KYC veriff start create the session");
   try {
     const { type } = req.body;
     if (type !== 'kyc') {
@@ -695,7 +714,7 @@ async function sendKycEmail(landlord, kycStatus) {
     color = BRAND.success;
     bodyHtml = `<p style="margin:0 0 8px;color:${BRAND.textMuted}">Your identity has been verified and your Block Lease account is now fully active.</p>
                 <p style="margin:0 0 8px;color:${BRAND.textMuted}">You can now log in to manage your properties and contracts.</p>`;
-    button = { href: `${FRONTEND_URL}/dashboard`, label: 'Go to Dashboard', bg: BRAND.primary };
+    button = { href: `${FRONTEND_URL}/dashboard`, label: 'Go to Dashboard' };
   } else if (kycStatus === 'resubmission_requested') {
     subject = 'Action needed: Please resubmit your verification';
     color = BRAND.warning;
@@ -704,13 +723,13 @@ async function sendKycEmail(landlord, kycStatus) {
                   <li>Retake your ID photo clearly and ensure all corners are visible</li>
                   <li>Remove masks/hats and use good lighting</li>
                 </ul>`;
-    button = { href: `${FRONTEND_URL}/verify-again`, label: 'Retry Verification', bg: BRAND.primary };
+    button = { href: `${FRONTEND_URL}/verify-again`, label: 'Retry Verification' };
   } else {
     subject = 'Verification unsuccessful – please try again';
     color = BRAND.danger;
     bodyHtml = `<p style="margin:0 0 8px;color:${BRAND.textMuted}">We were unable to verify your identity. This can happen due to unclear images or mismatched information.</p>
                 <p style="margin:0 0 8px;color:${BRAND.textMuted}">You can log in and start a new verification attempt when ready.</p>`;
-    button = { href: `${FRONTEND_URL}/login`, label: 'Log In to Retry', bg: BRAND.primary };
+    button = { href: `${FRONTEND_URL}/login`, label: 'Log In to Retry' };
   }
 
   const html = renderEmail({
@@ -972,8 +991,6 @@ app.post('/api/units', authMiddleware, upload.fields([
   }
 });
 
-
-
 async function uploadFileToS3(fileBuffer, folder, originalname, mimetype = '') {
   let body = fileBuffer;
   let ext = (originalname.split('.').pop() || '').toLowerCase();
@@ -991,15 +1008,12 @@ async function uploadFileToS3(fileBuffer, folder, originalname, mimetype = '') {
     body = normalized.buffer;
     ext = normalized.ext;                  // 'png'
     contentType = normalized.contentType;  // 'image/png'
-    // Keep the original filename in metadata if useful
   } else {
-    // Non-image, non-PDF: try to sniff and store correctly
     const ft = await fileTypeFromBuffer(fileBuffer);
     if (ft?.mime) {
       contentType = ft.mime;
       ext = ft.ext || ext || 'bin';
     } else {
-      // fallback
       const guessed = mime.extension(contentType);
       if (guessed) ext = guessed;
       if (!ext) ext = 'bin';
@@ -1020,7 +1034,6 @@ async function uploadFileToS3(fileBuffer, folder, originalname, mimetype = '') {
   console.log(`✅ Uploaded ${originalname} -> ${s3Key} (${contentType})`);
   return s3Key;
 }
-
 
 app.get('/api/landlord/dashboard', authMiddleware, async (req, res) => {
   try {
@@ -1071,8 +1084,8 @@ app.post('/api/units/:unitId/verify', authMiddleware, upload.fields([
       return res.status(400).json({ status: 'error', message: "Address Mismatch: The address on the deed does not match the utility bill." });
     }
 
-const titleDeedS3Key = await uploadFileToS3(titleDeedFile.buffer, 'verified-title-deeds', titleDeedFile.originalname, titleDeedFile.mimetype);
-const utilityBillS3Key = await uploadFileToS3(utilityBillFile.buffer, 'verified-utility-bills', utilityBillFile.originalname, utilityBillFile.mimetype);
+    const titleDeedS3Key = await uploadFileToS3(titleDeedFile.buffer, 'verified-title-deeds', titleDeedFile.originalname, titleDeedFile.mimetype);
+    const utilityBillS3Key = await uploadFileToS3(utilityBillFile.buffer, 'verified-utility-bills', utilityBillFile.originalname, utilityBillFile.mimetype);
 
     await getDB().collection('units').updateOne(
       { _id: new ObjectId(unitId), landlordId: req.landlordId },
@@ -1095,35 +1108,35 @@ const utilityBillS3Key = await uploadFileToS3(utilityBillFile.buffer, 'verified-
 });
 
 app.delete('/api/units/:unitId/archive', authMiddleware, async (req, res) => {
-    try {
-        const { unitId } = req.params;
-        console.log(unitId)
-        const result = await getDB().collection('units').updateOne(
-            { _id: new ObjectId(unitId), landlordId: req.landlordId },
-            { $set: { status: 'archived', archivedOn: new Date() } }
-        );
-        if (result.matchedCount === 0) {
-            return res.status(404).json({ message: "Unit not found or you don't have permission." });
-        }
-        res.status(200).json({ message: "Unit has been archived." });
-    } catch (error) {
-        res.status(500).json({ message: 'Server error while archiving unit.' });
+  try {
+    const { unitId } = req.params;
+    const result = await getDB().collection('units').updateOne(
+      { _id: new ObjectId(unitId), landlordId: req.landlordId },
+      { $set: { status: 'archived', archivedOn: new Date() } }
+    );
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: "Unit not found or you don't have permission." });
     }
+    res.status(200).json({ message: "Unit has been archived." });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error while archiving unit.' });
+  }
 });
+
 app.post('/api/units/:unitId/restore', authMiddleware, async (req, res) => {
-    try {
-        const { unitId } = req.params;
-        const result = await getDB().collection('units').updateOne(
-            { _id: new ObjectId(unitId), landlordId: req.landlordId },
-            { $set: { status: 'active', archivedOn: null } }
-        );
-        if (result.matchedCount === 0) {
-            return res.status(404).json({ message: "Archived unit not found." });
-        }
-        res.status(200).json({ message: "Unit has been restored." });
-    } catch (error) {
-        res.status(500).json({ message: 'Server error while restoring unit.' });
+  try {
+    const { unitId } = req.params;
+    const result = await getDB().collection('units').updateOne(
+      { _id: new ObjectId(unitId), landlordId: req.landlordId },
+      { $set: { status: 'active', archivedOn: null } }
+    );
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: "Archived unit not found." });
     }
+    res.status(200).json({ message: "Unit has been restored." });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error while restoring unit.' });
+  }
 });
 
 // ------------------------------------------------------------------
@@ -1142,8 +1155,30 @@ app.post('/api/contracts/initiate', upload.single('contract'), async (req, res) 
       return res.status(400).json({ status: 'error', message: `Invalid Document: The uploaded file does not appear to be a rental contract (AI detected type: '${validation.type}').` });
     }
 
-    const fingerprint = await AiScanContract(contractFile.buffer, contractFile.mimetype);
-    const docHash = ethers.keccak256(ethers.toUtf8Bytes(fingerprint));
+    // Extract fields (NOT lowercased)
+    const fingerprintAI = await AiScanContract(contractFile.buffer, contractFile.mimetype);
+    const fp = parseFingerprint(fingerprintAI);
+
+    // Build both fingerprints
+    const fingerprintDisplay = buildDisplayFingerprint({
+      landlord: fp.landlordName,
+      tenant: fp.tenantName,
+      unit: fp.unitInfo,
+      from: fp.from,
+      to: fp.to,
+      rent: fp.rent
+    });
+
+    const fingerprintCanonical = buildCanonicalFingerprint({
+      landlord: fp.landlordName,
+      tenant: fp.tenantName,
+      unit: fp.unitInfo,
+      from: fp.from,
+      to: fp.to,
+      rent: fp.rent
+    });
+
+    const docHash = ethers.keccak256(ethers.toUtf8Bytes(fingerprintCanonical));
 
     const collPending = getDB().collection('pending_contracts');
     const collApproved = getDB().collection('approved_contracts');
@@ -1155,34 +1190,73 @@ app.post('/api/contracts/initiate', upload.single('contract'), async (req, res) 
       return res.status(200).json({ status: 'already_approved', message: 'This document has already been approved.', docHash });
     }
 
-    const details = parseFingerprint(fingerprint);
-    const landlord = await getDB().collection('landlords').findOne({ name: details.landlordName, kycStatus: 'approved' });
+    // Find landlord (case-insensitive, prefer approved)
+    const landlord = await getDB().collection('landlords').findOne({
+      name: { $regex: `^${escapeRegex(fp.landlordName)}$`, $options: 'i' },
+      kycStatus: 'approved'
+    });
+
     const contractS3Key = await uploadFileToS3(req.file.buffer, 'pending-contracts', contractFile.originalname, contractFile.mimetype);
 
-
-    const pendingContract = { docHash, fingerprint, contractS3Key, tenantEmail, createdAt: new Date() };
+    // Pending record
+    const pendingContract = {
+      docHash,
+      fingerprintDisplay,
+      fingerprintCanonical,
+      contractS3Key,
+      tenantEmail,
+      createdAt: new Date()
+    };
 
     if (landlord) {
       pendingContract.assignedLandlordId = landlord._id;
 
-      const landlordUnits = await getDB().collection('units').find({ landlordId: landlord._id, status: { $ne: 'archived' } }).toArray();
+      const landlordUnits = await getDB().collection('units')
+        .find({ landlordId: landlord._id, status: { $ne: 'archived' } }).toArray();
+
       let matchedUnit = null;
-      if (landlordUnits.length > 0) {
-        const bestMatchUnitId = await AiFindBestUnitMatch(details.unitInfo, landlordUnits);
-        if (bestMatchUnitId) matchedUnit = landlordUnits.find(u => u._id.toString() === bestMatchUnitId);
+      if (landlordUnits.length && fp.unitInfo) {
+        try {
+          const bestMatchUnitId = await AiFindBestUnitMatch(
+            (fp.unitInfo || '').toLowerCase(),
+            landlordUnits.map(u => ({
+              ...u,
+              unitNumber: (u.unitNumber || '').toLowerCase(),
+              address: {
+                streetAddress: (u.address?.streetAddress || '').toLowerCase(),
+                district: (u.address?.district || '').toLowerCase()
+              }
+            }))
+          );
+          if (bestMatchUnitId) {
+            matchedUnit = landlordUnits.find(u => String(u._id) === String(bestMatchUnitId));
+          }
+        } catch (e) {
+          console.warn('AiFindBestUnitMatch failed; will try exact match:', e?.message);
+        }
       }
+
+      if (!matchedUnit && fp.unitInfo) {
+        const unitNumberCandidate = (fp.unitInfo || '').split(',')[0].trim();
+        matchedUnit = await getDB().collection('units').findOne({
+          landlordId: landlord._id,
+          unitNumber: unitNumberCandidate
+        });
+      }
+
       if (matchedUnit) {
         pendingContract.unitId = matchedUnit._id;
         pendingContract.unitStatus = 'matched';
       } else {
         pendingContract.unitStatus = 'unmatched';
-        pendingContract.unmatchedUnitIdentifier = details.unitInfo;
+        pendingContract.unmatchedUnitIdentifier = fp.unitInfo;
       }
+
       await collPending.insertOne(pendingContract);
       return res.status(200).json({ status: 'pending_approval', message: 'Landlord found. Contract sent for approval.', docHash });
     } else {
       pendingContract.status = 'awaiting_landlord_registration';
-      pendingContract.unmatchedUnitIdentifier = details.unitInfo;
+      pendingContract.unmatchedUnitIdentifier = fp.unitInfo;
       await collPending.insertOne(pendingContract);
       return res.status(200).json({ status: 'landlord_not_found', message: 'Landlord not found. Please provide their email to invite them.', docHash });
     }
@@ -1200,10 +1274,10 @@ app.post('/api/approve-and-create-unit', authMiddleware, async (req, res) => {
 
     const newUnit = {
       landlordId: req.landlordId,
-      unitNumber: pending.unmatchedUnitIdentifier.split(',')[0].trim(),
+      unitNumber: (pending.unmatchedUnitIdentifier || '').split(',')[0].trim(),
       floor: '',
       address: {
-        streetAddress: `Details from contract: ${pending.unmatchedUnitIdentifier}`,
+        streetAddress: `Details from contract: ${pending.unmatchedUnitIdentifier || ''}`,
         subdistrict: '', district: '', province: '', zipCode: '', country: ''
       },
       isVerified: false,
@@ -1228,7 +1302,7 @@ app.post('/api/approve-contract', authMiddleware, async (req, res) => {
     // 1) Find the pending contract assigned to this landlord
     const pending = await db.collection('pending_contracts').findOne({
       docHash,
-      assignedLandlordId: req.landlordId, // <-- req.landlordId is an ObjectId from auth middleware
+      assignedLandlordId: req.landlordId,
     });
 
     if (!pending) {
@@ -1246,30 +1320,50 @@ app.post('/api/approve-contract', authMiddleware, async (req, res) => {
       });
     }
 
-    // 3) Build canonical fingerprint + hash 
-    const originalDetails = parseFingerprint(pending.fingerprint);
+    // 3) Build canonical + display fingerprints for the FINAL (corrected) info
+    const originalDisplay = pending.fingerprintDisplay
+      ? parseFingerprint(pending.fingerprintDisplay)
+      : parseFingerprint(pending.fingerprintCanonical || pending.fingerprint || '');
+
     const officialUnitInfo =
-      `${unit.floor ? `Floor ${unit.floor}, ` : ''}${unit.unitNumber}, ${unit.address.streetAddress}, ${unit.address.district}`;
-    const correctedFingerprint =
-      `Landlord: ${landlord.name} | Tenant: ${originalDetails.tenantName} | ` +
-      `Unit: ${officialUnitInfo} | From: ${originalDetails.from} | To: ${originalDetails.to} | Rent: ${originalDetails.rent}`;
-    const correctedDocHash = ethers.keccak256(ethers.toUtf8Bytes(correctedFingerprint));
+      `${unit.floor ? `Floor ${unit.floor}, ` : ''}${unit.unitNumber}, ${unit.address?.streetAddress || ''}, ${unit.address?.district || ''}`;
+
+    const correctedDisplayFingerprint = buildDisplayFingerprint({
+      landlord: landlord.name,                      // keep original case
+      tenant: originalDisplay.tenantName,          // may be lowercased in old data; accepted
+      unit: officialUnitInfo,
+      from: originalDisplay.from,
+      to: originalDisplay.to,
+      rent: originalDisplay.rent
+    });
+
+    const correctedCanonicalFingerprint = buildCanonicalFingerprint({
+      landlord: landlord.name,
+      tenant: originalDisplay.tenantName,
+      unit: officialUnitInfo,
+      from: originalDisplay.from,
+      to: originalDisplay.to,
+      rent: originalDisplay.rent
+    });
+
+    const correctedDocHash = ethers.keccak256(ethers.toUtf8Bytes(correctedCanonicalFingerprint));
 
     // 4) Idempotency: check chain first
     const ts = await contract.getDocumentTimestamp(correctedDocHash);
     const alreadyOnChain = (typeof ts === 'bigint') ? (ts > 0n) : (Number(ts) > 0);
-    console.log('[approve-contract] alreadyOnChain?', alreadyOnChain, correctedDocHash);
 
-    // Helper: converge DB state (no transactions required)
+    // Helper: converge DB state
     const convergeAndReturn = async (txHashOrNull, chainWasExisting) => {
       try {
-        // Upsert approved record (use $set to keep it fresh; $setOnInsert only for first-time fields)
         const upsertResult = await db.collection('approved_contracts').updateOne(
           { docHash: correctedDocHash },
           {
             $set: {
               docHash: correctedDocHash,
-              fingerprint: correctedFingerprint,
+              fingerprintDisplay: correctedDisplayFingerprint,
+              fingerprintCanonical: correctedCanonicalFingerprint,
+              // keep legacy "fingerprint" for older UIs as the display string
+              fingerprint: correctedDisplayFingerprint,
               landlordId: req.landlordId,
               unitId: pending.unitId,
               tenantEmail: pending.tenantEmail,
@@ -1282,19 +1376,7 @@ app.post('/api/approve-contract', authMiddleware, async (req, res) => {
           { upsert: true }
         );
 
-        // Remove from pending
         const deleteResult = await db.collection('pending_contracts').deleteOne({ _id: pending._id });
-
-        console.log('[approve-contract] converge results:', {
-          upsert: {
-            matchedCount: upsertResult.matchedCount,
-            modifiedCount: upsertResult.modifiedCount,
-            upsertedId: upsertResult.upsertedId || null,
-          },
-          deletedPending: deleteResult.deletedCount,
-          txHash: txHashOrNull || null,
-          docHash: correctedDocHash,
-        });
 
         return res.status(200).json({
           status: 'success',
@@ -1323,8 +1405,7 @@ app.post('/api/approve-contract', authMiddleware, async (req, res) => {
     };
 
     if (alreadyOnChain) {
-      // Treat as success; just converge DB state
-      return await convergeAndReturn(null, /* chainWasExisting */ true);
+      return await convergeAndReturn(null, true);
     }
 
     // 5) Not yet on-chain: send tx
@@ -1334,24 +1415,23 @@ app.post('/api/approve-contract', authMiddleware, async (req, res) => {
         correctedDocHash,
         landlord.name,
         officialUnitInfo,
-        originalDetails.tenantName,
-        originalDetails.from,
-        originalDetails.to
+        originalDisplay.tenantName,
+        originalDisplay.from,
+        originalDisplay.to
       );
       receipt = await tx.wait();
       console.log('✅ chain receipt:', { txHash: receipt.hash });
     } catch (err) {
-      // Between pre-check and send, someone else might have written it
       if (err?.reason === 'Document already verified') {
         console.warn('ℹ️ chain reports already verified during send — converging as success');
-        return await convergeAndReturn(null, /* chainWasExisting */ true);
+        return await convergeAndReturn(null, true);
       }
       console.error('❌ approve-contract tx error:', err);
       return res.status(500).json({ status: 'error', message: 'Blockchain transaction failed during approval.' });
     }
 
     // 6) Converge DB after success
-    return await convergeAndReturn(receipt.hash, /* chainWasExisting */ false);
+    return await convergeAndReturn(receipt.hash, false);
 
   } catch (error) {
     console.error('❌ Approve contract error (outer):', error);
@@ -1373,9 +1453,14 @@ app.post('/api/contracts/:docHash/terminate', authMiddleware, async (req, res) =
   }
 });
 
-// helper: escape for regex
-const escapeRegex = (s = '') => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// ------------------------------------------------------------------
+// Verification Endpoints
+// ------------------------------------------------------------------
 
+/**
+ * Upload a contract and verify against chain & DB.
+ * Backward compatible: tries canonical (lowercased) hash first, then legacy mixed-case.
+ */
 app.post('/api/verify-document', upload.single('contract'), async (req, res) => {
   try {
     if (!req.file) {
@@ -1385,10 +1470,11 @@ app.post('/api/verify-document', upload.single('contract'), async (req, res) => 
     // 1) Basic validation
     const validation = await AiclassifyDocument(req.file.buffer, req.file.mimetype);
     if (validation.type !== 'contract' || validation.confidence < 0.90) {
+      console.log(validation)
       return res.status(400).json({ status: 'error', message: "Invalid Document: The file does not appear to be a rental contract." });
     }
 
-    // 2) AI scan -> initial fingerprint
+    // 2) AI scan -> fields (NOT forced lowercase)
     const initialFingerprint = await AiScanContract(req.file.buffer, req.file.mimetype);
     const initial = parseFingerprint(initialFingerprint); // landlordName, tenantName, unitInfo, from, to, rent
 
@@ -1419,7 +1505,17 @@ app.post('/api/verify-document', upload.single('contract'), async (req, res) => 
     let matchedUnit = null;
     if (units.length && unitInfoRaw) {
       try {
-        const bestMatchUnitId = await AiFindBestUnitMatch(unitInfoRaw, units);
+        const bestMatchUnitId = await AiFindBestUnitMatch(
+          unitInfoRaw.toLowerCase(),
+          units.map(u => ({
+            ...u,
+            unitNumber: (u.unitNumber || '').toLowerCase(),
+            address: {
+              streetAddress: (u.address?.streetAddress || '').toLowerCase(),
+              district: (u.address?.district || '').toLowerCase()
+            }
+          }))
+        );
         if (bestMatchUnitId) {
           matchedUnit = units.find(u => String(u._id) === String(bestMatchUnitId));
         }
@@ -1440,48 +1536,79 @@ app.post('/api/verify-document', upload.single('contract'), async (req, res) => 
       return res.status(200).json({ verified: false, message: "Could not match unit from the document." });
     }
 
-    // 5) Rebuild the EXACT canonical string used in approval
+    // 5) Build official unit info
+    const street = matchedUnit.address?.streetAddress || '';
+    const district = matchedUnit.address?.district || '';
     const officialUnitInfo =
       `${matchedUnit.floor ? `Floor ${matchedUnit.floor}, ` : ''}` +
-      `${matchedUnit.unitNumber}, ${matchedUnit.address.streetAddress}, ${matchedUnit.address.district}`;
+      `${matchedUnit.unitNumber}, ${street}, ${district}`;
 
-    const canonicalFingerprint =
-      `Landlord: ${landlord.name} | ` +
-      `Tenant: ${initial.tenantName} | ` +
-      `Unit: ${officialUnitInfo} | ` +
-      `From: ${initial.from} | ` +
-      `To: ${initial.to} | ` +
-      `Rent: ${initial.rent}`;
+    // --- A) Canonicalfingerprint + hash ---
+    const canonicalFingerprint = buildCanonicalFingerprint({
+      landlord: landlord.name,
+      tenant: initial.tenantName,
+      unit: officialUnitInfo,
+      from: initial.from,
+      to: initial.to,
+      rent: initial.rent
+    });
+    const canonicalDocHash = ethers.keccak256(ethers.toUtf8Bytes(canonicalFingerprint));
 
-    const docHash = ethers.keccak256(ethers.toUtf8Bytes(canonicalFingerprint));
+    // --- B) Legacy (old) fingerprint + hash (no lowercasing) ---
+    const legacyFingerprint = buildDisplayFingerprint({
+      landlord: landlord.name,
+      tenant: initial.tenantName,
+      unit: officialUnitInfo,
+      from: initial.from,
+      to: initial.to,
+      rent: initial.rent
+    });
+    const legacyDocHash = ethers.keccak256(ethers.toUtf8Bytes(legacyFingerprint));
 
-    // 6) On-chain check (authenticity)
-    const ts = await contract.getDocumentTimestamp(docHash);
-    const isVerified = ts && (typeof ts === 'bigint' ? ts > 0n : Number(ts) > 0);
+    // 6) On-chain check (first canonical, then legacy for backward compatibility)
+    const tsCanonical = await contract.getDocumentTimestamp(canonicalDocHash);
+    const isCanonical = tsCanonical && (typeof tsCanonical === 'bigint' ? tsCanonical > 0n : Number(tsCanonical) > 0);
 
-    if (!isVerified) {
-      return res.status(200).json({ verified: false, message: "Document not found or not verified on the blockchain." });
+    let chosen = {
+      isVerified: isCanonical,
+      docHash: canonicalDocHash,
+      fingerprint: canonicalFingerprint,
+      ts: tsCanonical
+    };
+
+    if (!isCanonical) {
+      const tsLegacy = await contract.getDocumentTimestamp(legacyDocHash);
+      const isLegacy = tsLegacy && (typeof tsLegacy === 'bigint' ? tsLegacy > 0n : Number(tsLegacy) > 0);
+      if (!isLegacy) {
+        return res.status(200).json({ verified: false, message: "Document not found or not verified on the blockchain." });
+      }
+      chosen = {
+        isVerified: true,
+        docHash: legacyDocHash,
+        fingerprint: legacyFingerprint,
+        ts: tsLegacy
+      };
     }
 
     // 7) Business status from DB (active vs terminated) + presigned URL if active
-    const approved = await db.collection('approved_contracts').findOne({ docHash });
+    const approved = await db.collection('approved_contracts').findOne({ docHash: chosen.docHash });
     const contractStatus = approved?.status || 'active';
     const isActive = contractStatus === 'active';
 
-    // Prefer DB fingerprint if present (so UI shows the exact stored one for terminated/edited cases)
-    const fingerprintOut = approved?.fingerprint || canonicalFingerprint;
+    // Prefer DB display fingerprint if present
+    const fingerprintOut = approved?.fingerprintDisplay || approved?.fingerprint || approved?.fingerprintCanonical || chosen.fingerprint;
 
     let documentUrl = null;
     if (isActive && approved?.contractS3Key) {
       try { documentUrl = await getPresignedUrl(approved.contractS3Key); } catch (_) {}
     }
 
-    // 8) Return shape aligned with your VerificationPage.jsx
+    // 8) Response
     return res.status(200).json({
       verified: true,
       contractStatus, // "active" | "terminated"
       onChainDetails: {
-        verifiedOn: new Date(Number(String(ts)) * 1000).toUTCString(),
+        verifiedOn: new Date(Number(String(chosen.ts)) * 1000).toUTCString(),
         txHash: approved?.txHash || null
       },
       documentUrl, // only when active
@@ -1491,7 +1618,7 @@ app.post('/api/verify-document', upload.single('contract'), async (req, res) => 
       tenant: initial.tenantName,
       period: { from: initial.from, to: initial.to },
       rent: initial.rent || null,
-      docHash
+      docHash: chosen.docHash
     });
 
   } catch (error) {
@@ -1500,7 +1627,9 @@ app.post('/api/verify-document', upload.single('contract'), async (req, res) => 
   }
 });
 
-
+/**
+ * Public verify by docHash (no upload).
+ */
 app.get('/api/verify/:docHash', async (req, res) => {
   try {
     const { docHash } = req.params;
@@ -1520,7 +1649,6 @@ app.get('/api/verify/:docHash', async (req, res) => {
     const approved = await getDB().collection('approved_contracts').findOne({ docHash });
 
     if (!approved) {
-      // Treat as terminated/archived but keep authenticity — give a structured fingerprint for UI rendering
       const placeholderFingerprint =
         "Landlord: Archived | Tenant: Archived | Unit: Archived | From: N/A | To: N/A | Rent: N/A";
 
@@ -1540,14 +1668,13 @@ app.get('/api/verify/:docHash', async (req, res) => {
       });
     }
 
-    // Only expose documentUrl when active
     const isActive = (approved.status || 'active') === 'active';
     const documentUrl = (isActive && approved.contractS3Key)
       ? await getPresignedUrl(approved.contractS3Key)
       : null;
 
-    // Use the stored fingerprint (ensures exact match with what was approved)
-    const details = parseFingerprint(approved.fingerprint);
+    const displayFp = approved.fingerprintDisplay || approved.fingerprint || approved.fingerprintCanonical || '';
+    const details = parseFingerprint(displayFp);
 
     return res.status(200).json({
       contractStatus: approved.status || 'active',
@@ -1561,7 +1688,7 @@ app.get('/api/verify/:docHash', async (req, res) => {
         txHash: approved.txHash || null
       },
       documentUrl,
-      fingerprint: approved.fingerprint
+      fingerprint: displayFp
     });
 
   } catch (error) {
@@ -1569,8 +1696,6 @@ app.get('/api/verify/:docHash', async (req, res) => {
     return res.status(500).json({ status: 'error', message: "Server error during public verification." });
   }
 });
-
-
 
 // Invitations
 app.post('/api/invitations/send', async (req, res) => {
@@ -1584,6 +1709,8 @@ app.post('/api/invitations/send', async (req, res) => {
     const lowerEmail = landlordEmail.toLowerCase();
     const collLandlords = getDB().collection('landlords');
     const existingLandlord = await collLandlords.findOne({ email: lowerEmail });
+
+    const fpForEmail = pending.fingerprintDisplay || pending.fingerprint || pending.fingerprintCanonical || 'N/A';
 
     let subject, html;
 
@@ -1602,7 +1729,7 @@ app.post('/api/invitations/send', async (req, res) => {
           <p style="margin:0 0 8px;color:${BRAND.textMuted}">A new rental agreement has been submitted by a tenant and requires your approval.</p>
           <h3 style="margin:16px 0 8px;color:${BRAND.text}">Contract Fingerprint</h3>
           <div style="background:${BRAND.bg};padding:12px;border:1px solid ${BRAND.border};border-radius:8px;font-family:monospace;color:${BRAND.text}">
-            ${pending.fingerprint}
+            ${fpForEmail}
           </div>
         `,
         button: { href: `${FRONTEND_URL}/login`, label: 'Go to Dashboard' }
@@ -1622,11 +1749,11 @@ app.post('/api/invitations/send', async (req, res) => {
           <p style="margin:0 0 8px;color:${BRAND.textMuted}">A tenant has submitted a rental agreement for your approval on the Block Lease platform.</p>
           <h3 style="margin:16px 0 8px;color:${BRAND.text}">Contract Fingerprint</h3>
           <div style="background:${BRAND.bg};padding:12px;border:1px solid ${BRAND.border};border-radius:8px;font-family:monospace;color:${BRAND.text}">
-            ${pending.fingerprint}
+            ${fpForEmail}
           </div>
           <p style="margin:12px 0 0;color:${BRAND.textMuted}">Please create your free account to review and approve this document. Once you sign up with this email address, the contract will be waiting for you on your dashboard.</p>
         `,
-        button: { href: `${FRONTEND_URL}/register`, label: 'Create Your Account', bg: BRAND.accent }
+        button: { href: `${FRONTEND_URL}/register`, label: 'Create Your Account' }
       });
     }
 
@@ -1654,8 +1781,7 @@ app.get('/api/s3/presigned-url', authMiddleware, async (req, res) => {
 // ------------------------------------------------------------------
 // Start
 // ------------------------------------------------------------------
-//for unit testing
-module.exports = { app, connectDB,getPresignedUrl };
+module.exports = { app, connectDB, getPresignedUrl };
 
 if (require.main === module) {
   connectDB().then(() => {

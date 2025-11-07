@@ -55,7 +55,7 @@ export default function BlogPage() {
     <div className="max-w-7xl mx-auto py-12 px-4 animate-fade-in">
       {/* --- Header --- */}
       <div className="text-center mb-16">
-        <h1 className="text-4xl md:text-5xl font-extrabold text-text-primary">Insights & News</h1>
+        <h1 className="text-4xl md:text-5xl font-extrabold text-text-secondary">Insights & News</h1>
         <p className="mt-4 text-lg text-text-secondary max-w-2xl mx-auto">
           Exploring the intersection of technology, real estate, and digital trust.
         </p>

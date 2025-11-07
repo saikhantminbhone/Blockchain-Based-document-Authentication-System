@@ -47,7 +47,7 @@ export default function ContactPage() {
   return (
     <div className="max-w-7xl mx-auto py-16 px-4 animate-fade-in">
       <div className="text-center mb-16">
-        <h1 className="text-4xl md:text-5xl font-extrabold text-text-primary">Get in Touch</h1>
+        <h1 className="text-4xl md:text-5xl font-extrabold text-text-secondary">Get in Touch</h1>
         <p className="mt-4 text-lg text-text-secondary max-w-2xl mx-auto">
           Have a question or a proposal? We'd love to hear from you.
         </p>
