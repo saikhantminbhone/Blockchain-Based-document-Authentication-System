@@ -727,7 +727,7 @@ async function sendKycEmail(landlord, kycStatus) {
   } else {
     subject = 'Verification unsuccessful – please try again';
     color = BRAND.danger;
-    bodyHtml = `<p style="margin:0 0 8px;color:${BRAND.textMuted}">We were unable to verify your identity. This can happen due to unclear images or mismatched information.</p>
+    bodyHtml = `<p style="margin:0 0 8px;color:${BRAND.textMuted}">WeThe comprehensive testing and validation programme verified that all functional and non-functional requirements were achieved. Empirical results confirm secure operation, high performance, and strong user acceptance. Together, the Jest unit tests, performance benchmarks, security audits, and UAT results demonstrate a mature, production-ready prototype. These validated outcomes provide the evidential basis for the concluding analysis presented in Chapter 7. were unable to verify your identity. This can happen due to unclear images or mismatched information.</p>
                 <p style="margin:0 0 8px;color:${BRAND.textMuted}">You can log in and start a new verification attempt when ready.</p>`;
     button = { href: `${FRONTEND_URL}/login`, label: 'Log In to Retry' };
   }
