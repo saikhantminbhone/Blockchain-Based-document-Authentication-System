@@ -108,37 +108,35 @@ const BRAND = {
  */
 function renderButton(href, label) {
   const bg = BRAND.primary;
+  const safeHref = href || '#';
+
   return `
-  <!--[if mso]>
-    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${href}"
-      style="height:46px;v-text-anchor:middle;width:260px;" arcsize="10%"
-      stroke="f" fillcolor="${bg}">
-      <w:anchorlock/>
-      <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:700;">
-        ${label}
-      </center>
-    </v:roundrect>
-  <![endif]-->
-  <!--[if !mso]><!-- -->
-    <a href="${href}" target="_blank" rel="noopener noreferrer"
-       style="
-         display:inline-block;
-         background:${bg};
-         color:#ffffff !important;
-         text-decoration:none;
-         font-weight:600;
-         font-size:16px;
-         line-height:46px;
-         padding:0 28px;
-         border-radius:8px;
-         -webkit-text-size-adjust:none;
-         mso-hide:all;
-         cursor:pointer;">
-      ${label}
-    </a>
-  <!--<![endif]-->
+    <table role="presentation" border="0" cellspacing="0" cellpadding="0">
+      <tr>
+        <td align="center">
+          <a href="${safeHref}"
+             target="_blank"
+             rel="noopener noreferrer"
+             style="
+               display:inline-block;
+               background:${bg};
+               color:#ffffff !important;
+               text-decoration:none;
+               font-weight:600;
+               font-size:16px;
+               line-height:1.4;
+               padding:12px 24px;
+               border-radius:9999px;
+               -webkit-text-size-adjust:none;
+             ">
+            ${label}
+          </a>
+        </td>
+      </tr>
+    </table>
   `;
 }
+
 
 /**
  * Unified email shell.
@@ -211,6 +209,25 @@ function renderEmail({ title, intro, bodyHtml, button, footerNote }) {
   </body>
   </html>
   `;
+}
+
+
+// Remove titles like "Mr.", "Mrs.", "Dr.", etc. and normalise spacing/case
+function normalisePersonName(raw = '') {
+  return raw
+    .toString()
+    .trim()
+    // lower-case everything
+    .toLowerCase()
+    // remove common English honorifics
+    .replace(/\b(mr|mrs|ms|miss|dr|prof|sir)\.?(\s|$)/g, ' ')
+    // remove some common Thai honorifics if you expect them
+    .replace(/\b(นาย|นาง|นางสาว)\b/g, ' ')
+    // strip punctuation that doesn’t matter for matching
+    .replace(/[,.;:"'’]/g, ' ')
+    // collapse multiple spaces
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function splitName(fullName = '') {
@@ -368,6 +385,7 @@ app.post('/api/register-landlord', async (req, res) => {
       emailVerificationToken,
       emailVerificationExpires,
       createdAt: new Date(),
+      nameSearch: normalisePersonName(name),
     };
     await coll.insertOne(newLandlord);
 
@@ -567,6 +585,7 @@ app.post('/api/auth/google', async (req, res) => {
         kycStatus: 'pending',
         emailStatus: 'verified',
         createdAt: new Date(),
+        nameSearch: normalisePersonName(name),
       };
       const result = await coll.insertOne(toInsert);
       landlord = { _id: result.insertedId, ...toInsert };
@@ -1028,7 +1047,7 @@ async function uploadFileToS3(fileBuffer, folder, originalname, mimetype = '') {
     Key: s3Key,
     Body: body,
     ContentType: contentType,
-    Metadata: { originalname }
+    //Metadata: { originalname }
   }));
 
   console.log(`✅ Uploaded ${originalname} -> ${s3Key} (${contentType})`);
@@ -1191,10 +1210,23 @@ app.post('/api/contracts/initiate', upload.single('contract'), async (req, res) 
     }
 
     // Find landlord (case-insensitive, prefer approved)
-    const landlord = await getDB().collection('landlords').findOne({
-      name: { $regex: `^${escapeRegex(fp.landlordName)}$`, $options: 'i' },
-      kycStatus: 'approved'
+    const landlordsColl = getDB().collection('landlords');
+    const targetNameSearch = normalisePersonName(fp.landlordName);
+
+    // Try exact normalised match first
+    let landlord = await landlordsColl.findOne({
+      nameSearch: targetNameSearch,
+      kycStatus: 'approved',
     });
+
+    // Fallback: older records without nameSearch -> previous regex
+    if (!landlord) {
+      landlord = await landlordsColl.findOne({
+        name: { $regex: `^${escapeRegex(fp.landlordName)}$`, $options: 'i' },
+        kycStatus: 'approved',
+      });
+    }
+
 
     const contractS3Key = await uploadFileToS3(req.file.buffer, 'pending-contracts', contractFile.originalname, contractFile.mimetype);
 
@@ -1479,18 +1511,34 @@ app.post('/api/verify-document', upload.single('contract'), async (req, res) => 
     const initial = parseFingerprint(initialFingerprint); // landlordName, tenantName, unitInfo, from, to, rent
 
     const db = getDB();
-    const landlordNameRaw = (initial.landlordName || '').trim();
     const unitInfoRaw     = (initial.unitInfo || '').trim();
 
     // 3) Robust landlord match (case-insensitive, prefer approved)
-    const landlord =
-      await db.collection('landlords').findOne({
-        name: { $regex: `^${escapeRegex(landlordNameRaw)}$`, $options: 'i' },
-        kycStatus: 'approved'
+    const landlordNameRaw = (initial.landlordName || '').trim();
+    const targetNameSearch = normalisePersonName(landlordNameRaw);
+    const landlordsColl = db.collection('landlords');
+
+    let landlord =
+      await landlordsColl.findOne({
+        nameSearch: targetNameSearch,
+        kycStatus: 'approved',
       })
-      || await db.collection('landlords').findOne({
-        name: { $regex: `^${escapeRegex(landlordNameRaw)}$`, $options: 'i' }
+      || await landlordsColl.findOne({
+        nameSearch: targetNameSearch,
       });
+
+    // Fallback for very old records without nameSearch
+    if (!landlord) {
+      landlord =
+        await landlordsColl.findOne({
+          name: { $regex: `^${escapeRegex(landlordNameRaw)}$`, $options: 'i' },
+          kycStatus: 'approved',
+        })
+        || await landlordsColl.findOne({
+          name: { $regex: `^${escapeRegex(landlordNameRaw)}$`, $options: 'i' },
+        });
+    }
+
 
     if (!landlord) {
       return res.status(200).json({ verified: false, message: "Could not match landlord from the document." });

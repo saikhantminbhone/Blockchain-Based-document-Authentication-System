@@ -11,7 +11,7 @@ export default function PendingContractItem({ contract, unit, onApproved, onVeri
   const [error, setError] = useState('');
   const isUnitVerified = unit && unit.isVerified;
 
-  const contractDetails = contract.fingerprint.split('|').reduce((acc, part) => {
+  const contractDetails = contract.fingerprintCanonical.split('|').reduce((acc, part) => {
     const [key, value] = part.split(':');
     if (key && value) acc[key.trim()] = value.trim();
     return acc;
