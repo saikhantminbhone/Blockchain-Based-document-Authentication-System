@@ -1,34 +1,47 @@
-// src/components/PendingContractItem.jsx
-
 import React, { useState } from 'react';
-import { approveContract, approveAndCreateUnit } from '../services/api';
+import { approveContract } from '../services/api'; 
 import Button from './ui/Button';
-import { FileText, ExternalLink, AlertTriangle,FileCheck } from 'lucide-react';
-import { showSuccessToast, showErrorToast } from '../components/Notifications'; 
+import { FileText, ExternalLink, AlertTriangle, FileCheck } from 'lucide-react';
+import { showSuccessToast, showErrorToast } from '../components/Notifications';
 
-export default function PendingContractItem({ contract, unit, onApproved, onVerifyClick, onPreviewClick }) {
+export default function PendingContractItem({ 
+  contract, 
+  unit, 
+  onUpdate, 
+  onVerifyClick, 
+  onPreviewClick, 
+  onAddUnitClick 
+}) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const isUnitVerified = unit && unit.isVerified;
 
-  const contractDetails = contract.fingerprintCanonical.split('|').reduce((acc, part) => {
+  // 1. Parse Fingerprint first so we can use it in the title
+  // We check all possible fingerprint fields to be safe
+  const fingerprintRaw = contract.fingerprintDisplay || contract.fingerprintCanonical || contract.fingerprint || '';
+  
+  const contractDetails = fingerprintRaw.split('|').reduce((acc, part) => {
     const [key, value] = part.split(':');
     if (key && value) acc[key.trim()] = value.trim();
     return acc;
   }, {});
 
-  const handleApprove = async () => {
+  // 2. LOGIC: Best Possible Title Display
+  // Priority 1: The real Unit Number (if matched)
+  // Priority 2: The "Unit" field from the AI Fingerprint (Cleanest)
+  // Priority 3: The raw identifier from the database (Fallback)
+  // Priority 4: "New Property" (Last resort)
+  const displayTitle = unit?.unitNumber 
+    ? `Unit ${unit.unitNumber}` 
+    : (contractDetails.Unit || contract.unmatchedUnitIdentifier || "New Property");
+
+  // --- Standard Approve ---
+  const handleStandardApprove = async () => {
     setIsLoading(true);
     setError('');
     try {
-      let result;
-      if (contract.unitStatus === 'unmatched') {
-        result = await approveAndCreateUnit(contract.docHash);
-      } else {
-        result = await approveContract(contract.docHash);
-      }
+      const result = await approveContract(contract.docHash);
       showSuccessToast(result.message);
-      onApproved();
+      onUpdate();
     } catch (err) {
       const message = err.response?.data?.message || 'Failed to approve contract.';
       showErrorToast(message);
@@ -39,47 +52,61 @@ export default function PendingContractItem({ contract, unit, onApproved, onVeri
   };
 
   return (
-    <div className="p-3 border rounded-lg bg-background space-y-3">
+    <div className="p-4 border rounded-lg bg-card shadow-sm border-border space-y-3">
+      {/* Header: Shows the Smart Address */}
       <div className="flex items-center text-sm font-semibold text-text-primary">
-        <FileText className="w-4 h-4 mr-2" />
-        <span>Contract Details for Unit: {unit?.unitNumber || contract.unmatchedUnitIdentifier}</span>
+        <FileText className="w-4 h-4 mr-2 text-primary" />
+        <span>Contract for: <span className="text-primary ml-1 font-bold break-all">{displayTitle}</span></span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 text-sm text-text-secondary">
+      {/* Contract Details */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 text-sm text-text-secondary bg-background/50 p-3 rounded-md">
         <p><strong>Tenant:</strong> {contractDetails.Tenant || 'N/A'}</p>
         <p><strong>Rent:</strong> {contractDetails.Rent || 'N/A'}</p>
         <p><strong>From:</strong> {contractDetails.From || 'N/A'}</p>
         <p><strong>To:</strong> {contractDetails.To || 'N/A'}</p>
-        
       </div>
       
-      {contract.unitStatus === 'unmatched' && !unit && (
-        <div className="flex items-center text-sm text-info bg-info/10 p-2 rounded-md">
-            <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0" />
-            <span>This contract is for a new unit: <strong>{contract.unmatchedUnitIdentifier}</strong>. Approving will add it to your portfolio.</span>
+      {/* Warning for New/Unmatched Unit */}
+      {contract.unitStatus === 'unmatched' && (
+        <div className="flex items-start text-sm text-info bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 p-3 rounded-md border border-blue-100 dark:border-blue-800">
+            <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0 mt-0.5" />
+            <span>
+              <strong>New Property Detected:</strong> The address "<em>{contractDetails.Unit || contract.unmatchedUnitIdentifier}</em>" is not in your portfolio. 
+              Click "Add Unit & Approve" to create it.
+            </span>
         </div>
       )}
 
       {error && <p className="text-sm text-center text-error pt-2">{error}</p>}
-     
-
+    
       <div className="flex items-center justify-end gap-3 pt-2">
-       {!isUnitVerified && <p className="text-xs text-warning text-right">Verify unit's deed to enable approval</p>}
-        <Button onClick={() => onPreviewClick(contract.contractS3Key)} variant="secondary" className="inline-flex items-center gap-1">
-          <ExternalLink size={14} /> Preview
+        <Button onClick={() => onPreviewClick(contract.contractS3Key)} variant="secondary" className="text-xs h-9">
+          <ExternalLink size={14} className="mr-1"/> Preview
         </Button>
         
-         
-        {isUnitVerified || contract.unitStatus === 'unmatched' ? (
-          <Button onClick={handleApprove} isLoading={isLoading} className="bg-accent hover:bg-hover-teal">
-            {contract.unitStatus === 'unmatched' ? 'Add Unit & Approve' : 'Review & Approve'}
+        {contract.unitStatus === 'unmatched' ? (
+          // CASE 1: Unmatched -> Call Parent's Handler
+          <Button onClick={() => onAddUnitClick(contract)} className="bg-accent hover:bg-hover-teal">
+              Add Unit & Approve
           </Button>
         ) : (
-          <div className="flex items-center gap-2">
-            <Button onClick={() => onVerifyClick(unit)} variant="secondary" className="inline-flex items-center gap-1">
-                <FileCheck size={14} /> Verify
-            </Button>
-          </div>
+          // CASE 2: Matched -> Verify or Approve
+          (unit && unit.isVerified) ? (
+              <Button onClick={handleStandardApprove} isLoading={isLoading}>
+                  Review & Approve
+              </Button>
+          ) : (
+              <Button 
+                  onClick={() => unit && onVerifyClick(unit)} 
+                  disabled={!unit} 
+                  variant="secondary"
+                  className="bg-yellow-50 text-yellow-700 hover:bg-yellow-100 border-yellow-200"
+              >
+                  <FileCheck size={14} className="mr-1" />
+                  {unit ? 'Verify Deed' : 'Unit Data Missing'}
+              </Button>
+          )
         )}
       </div>
     </div>

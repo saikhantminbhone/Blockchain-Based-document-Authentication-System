@@ -91,6 +91,27 @@ export const verifyUnitDeed = async (unitId, formData) => {
     return data;
 };
 
+// 1. Send deed to AI for scanning (Read-Only)
+export const verifyDeedAnalysis = async (unitId, file) => {
+    const formData = new FormData();
+    formData.append('deed', file);
+    formData.append('unitId', unitId);
+
+    const response = await api.post('/units/analyze-deed', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+};
+
+// 2. Save the final verified data (Write)
+export const confirmDeedVerification = async (unitId, deedData) => {
+    const response = await api.post('/units/confirm-deed', {
+        unitId,
+        deedData // This contains the user-edited or AI-generated data
+    });
+    return response.data;
+};
+
 export const terminateContract = async (docHash) => {
     const { data } = await api.post(`/contracts/${docHash}/terminate`);
     return data;
@@ -107,10 +128,15 @@ export const restoreUnit = async (unitId) => {
 };
 
 
-export const approveAndCreateUnit = async (docHash) => {
-    const { data } = await api.post('/approve-and-create-unit', { docHash });
-    console.log(data)
-    return data;
+
+
+export const approveAndCreateUnit = async (docHash, addressDetails) => {
+    // This matches the new backend endpoint we just wrote
+    const response = await api.post('/approve-and-create-unit', { 
+        docHash, 
+        addressDetails 
+    });
+    return response.data;
 };
 
 export const getPublicVerificationData = async (docHash) => {

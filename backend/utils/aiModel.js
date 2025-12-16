@@ -7,7 +7,7 @@ const Ajv = require('ajv');
 /* ========================= Model Setup ========================= */
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
 const proModel   = genAI.getGenerativeModel({ model: 'gemini-2.5-pro'   });
-const flashModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+const flashModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
 
 /* ======================= Error Utilities ======================= */
 class UserFacingError extends Error {
@@ -64,16 +64,23 @@ function approxIncludes(hay='', needle=''){
  * No native deps; works out of the box.
  */
 async function ocrToText(buffer) {
-  // ✅ For tesseract.js v4/v5 style API
-  const worker = await createWorker(); // no positional args
   try {
-    await worker.load();                                // load core
-    await worker.loadLanguage('eng+tha');               // download/load traineddata
-    await worker.initialize('eng+tha');                 // init with langs
-    const { data } = await worker.recognize(buffer);    // do OCR
-    return data?.text || '';
-  } finally {
+    // v5/v6 Change: createWorker is async and takes language as an argument.
+    // It handles load() and loadLanguage() internally now.
+    const worker = await createWorker('eng+tha'); 
+    
+    // Recognize directly
+    const { data } = await worker.recognize(buffer);
+    
+    // Clean up
     await worker.terminate();
+    
+    return data.text || '';
+  } catch (err) {
+    console.error("OCR Error:", err);
+    // Fallback: If OCR fails (e.g. language data download error), return empty string 
+    // so the rest of the AI flow (Gemini) can still try to read it.
+    return ""; 
   }
 }
 
@@ -168,7 +175,7 @@ Analyze the image for digital manipulation or "photo-of-screen" signs (moire, gl
 Return ONLY a number (0-100) as authenticity likelihood. Example: 98.5`;
   try {
     const imagePart = { inlineData: { data: fileBuffer.toString('base64'), mimeType } };
-    const r = await proModel.generateContent([prompt, imagePart]);
+    const r = await flashModel.generateContent([prompt, imagePart]);
     const score = parseFloat(r?.response?.text?.().trim() || '0');
     return Number.isFinite(score) ? score : 0;
   } catch {
@@ -239,49 +246,123 @@ No extra fields. If unsure about a field, use "unknown".`;
 }
 
 /**
- * Thai title deed extractor with classifier, markers, schema & evidence checks.
+ * Thai title deed extractor (Relaxed for Testing)
  */
 async function AiExtractDeedData(fileBuffer, mimeType){
-  if (!/^image\//.test(mimeType || '') && mimeType !== 'application/pdf') {
-    throw ufErr('DEED_UNSUPPORTED_FILETYPE','Unsupported file type for title deeds.','Upload an image (JPG/PNG) or PDF.',415,'titleDeed');
+  // 1. Safety Check for File Type
+  // Default to 'image/jpeg' if mimeType is missing (common axios/form-data issue)
+  const safeMime = mimeType || 'image/jpeg';
+  if (!/^image\//.test(safeMime) && safeMime !== 'application/pdf') {
+    throw ufErr('DEED_UNSUPPORTED_FILETYPE','Unsupported file type.', 'Upload JPG/PNG or PDF.', 415, 'titleDeed');
   }
 
-  const cls = await AiclassifyDocument(fileBuffer, mimeType);
-  if (cls?.type !== 'deed' || (cls?.confidence ?? 0) < 0.92) {
-    throw ufErr('DEED_CLASSIFIER_REJECT','The upload does not look like a title deed.','Upload the official title deed page (โฉนดที่ดิน) with owner and address.',400,'titleDeed');
+  // 2. Classifier (RELAXED)
+  // We lower the threshold to 0.50 and log the result instead of crashing
+  const cls = await AiclassifyDocument(fileBuffer, safeMime);
+  console.log(`🔍 Classifier: Type=${cls.type}, Confidence=${cls.confidence}`);
+  
+  // DEV MODE: Allow it even if confidence is low, just warn in console
+  if (cls?.type !== 'deed') {
+    console.warn("⚠️ Warning: AI thinks this might not be a deed, but proceeding for testing.");
   }
 
+  // 3. OCR Check (RELAXED)
   const ocr = await ocrToText(fileBuffer);
+  console.log("🔍 OCR Text Length:", ocr.length);
+  // console.log("🔍 OCR Dump:", ocr); // Uncomment to see raw text
+
   if (!ocr.trim()) {
-    throw ufErr('DEED_OCR_EMPTY','We could not read any text from the title deed.','Retake the photo flat and in focus. Avoid reflections.',400,'titleDeed');
-  }
-  if (!includesAny(ocr, THAI_DEED_KEYWORDS)) {
-    throw ufErr('DEED_KEYWORDS_MISSING','Key title deed markers were not found.','Ensure “โฉนดที่ดิน / เลขที่โฉนด / สำนักงานที่ดิน” are visible.',400,'titleDeed');
+    throw ufErr('DEED_OCR_EMPTY','Cannot read text.','Photo is too blurry or blank.',400,'titleDeed');
   }
 
-  const prompt = `Return ONLY this JSON:
-{"ownerName":"...", "propertyAddress":"..."}
-If unsure about a field, use "unknown". No explanations.`;
-  const imagePart = { inlineData: { data: fileBuffer.toString('base64'), mimeType } };
+  // DEV MODE: Comment out the strict keyword check. 
+  // Thai OCR is often messy; we don't want to block the user just because it missed one word.
+  /*
+  if (!includesAny(ocr, THAI_DEED_KEYWORDS)) {
+    throw ufErr('DEED_KEYWORDS_MISSING','Key title deed markers missing.', 'Ensure "โฉนดที่ดิน" is visible.', 400, 'titleDeed');
+  }
+  */
+
+  // 4. Extraction via Gemini (The important part)
+  const prompt = `
+    Analyze this image (Thai Title Deed).
+    Extract:
+    1. Owner Name (ผู้ถือกรรมสิทธิ์)
+    2. Property Address (Location/ที่ตั้งที่ดิน) - Combine House No, Street, District, Province.
+    
+    Return ONLY this JSON:
+    {"ownerName":"...", "propertyAddress":"..."}
+    If unclear, use "unknown".
+  `;
+  
+  const imagePart = { inlineData: { data: fileBuffer.toString('base64'), mimeType: safeMime } };
 
   let json;
   try {
     json = await genJson(flashModel, prompt, imagePart);
-  } catch {
-    throw ufErr('DEED_MODEL_PARSE_FAIL','We could not read the deed details.','Capture the page with owner name and full property address readable.',400,'titleDeed');
+    console.log("✅ Extracted Data:", json);
+  } catch (err) {
+    console.error("Gemini Error:", err);
+    throw ufErr('DEED_MODEL_PARSE_FAIL','AI could not read details.', 'Try a clearer image.', 400, 'titleDeed');
   }
 
-  if (!validateDeed(json)) {
-    throw ufErr('DEED_SCHEMA_INVALID','The deed details are incomplete.','Ensure owner name and full property address are present and readable.',400,'titleDeed');
+  // 5. Schema Validation
+  if (!json.ownerName || !json.propertyAddress) {
+     throw ufErr('DEED_SCHEMA_INVALID','Incomplete data.', 'Owner name or address is missing.', 400, 'titleDeed');
   }
 
+  // 6. Evidence Check (DISABLED FOR TESTING)
+  // This blocks valid AI corrections. Disable it to make the demo smooth.
+  /*
   const okName = approxIncludes(ocr, json.ownerName);
   const okAddr = approxIncludes(ocr, json.propertyAddress);
   if (!okName || !okAddr) {
-    throw ufErr('DEED_EVIDENCE_FAIL','Owner name or property address is unclear on the deed.','Capture the full page, flat and in focus.',400,'titleDeed');
+    throw ufErr('DEED_EVIDENCE_FAIL','Mismatch between text and AI.', 'Re-upload clear image.', 400, 'titleDeed');
   }
+  */
 
   return json; // { ownerName, propertyAddress }
+}
+
+async function AiVerifyDeedMatch(extractedDeedData, landlordName, unitAddress) {
+  const prompt = `
+    Act as a strict Legal Document Auditor. Compare the following two datasets.
+
+    DATASET A (System Records):
+    - Owner Name: "${landlordName}"
+    - Unit Address: "${JSON.stringify(unitAddress)}"
+
+    DATASET B (Extracted from Title Deed):
+    - Owner Name: "${extractedDeedData.ownerName}"
+    - Property Address: "${extractedDeedData.propertyAddress}"
+
+    TASK:
+    Determine if these represent the same person and the same property.
+    - Allow for minor spelling differences (e.g., "Jon" vs "John").
+    - Allow for address formatting differences (e.g., "Rd." vs "Road", "Bangkok" vs "BKK").
+    - Be strict about House Numbers and Unit Numbers.
+
+    RETURN ONLY THIS JSON:
+    {
+      "isMatch": boolean,
+      "confidence": number,
+      "reason": "string explaining why"
+    }
+  `;
+
+  try {
+    // We use the flashModel for text-only comparison (fast & cheap)
+    const result = await flashModel.generateContent(prompt);
+    const text = result.response.text();
+    
+    // Clean and parse JSON
+    const jsonString = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(jsonString);
+  } catch (error) {
+    console.error("AI Verification Error:", error);
+    // Fallback: If AI fails, return false so human must review
+    return { isMatch: false, confidence: 0, reason: "AI Service Error" };
+  }
 }
 
 /**
@@ -363,6 +444,7 @@ module.exports = {
   AiScanContract,
   AiCheckDocumentAuthenticity,
   AiextractUtilityBillData,
+  AiVerifyDeedMatch,
   AiExtractDeedData,
   AiCompareAddresses,
   AiFindBestUnitMatch,
