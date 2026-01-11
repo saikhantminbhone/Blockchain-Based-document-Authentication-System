@@ -1,4 +1,3 @@
-// src/pages/RegisterPage.jsx
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -40,7 +39,6 @@ function strengthScore(pw) {
   return score; // 0..5
 }
 
-// A compact, policy-aligned meter
 const PasswordStrengthMeter = ({ password }) => {
   const score = strengthScore(password);
   const levels = [
@@ -107,7 +105,7 @@ export default function RegisterPage() {
       if (!idToken) throw new Error('Missing Google credential.');
       const data = await loginWithGoogle(idToken); // expects { token, landlord, isNewUser }
       if (!data?.token) throw new Error('Google login response missing token.');
-      login(data.token, data.landlord); // your AuthContext login
+      login(data.token, data.landlord); 
       showSuccessToast('Welcome to Block Lease!');
       navigate('/dashboard');
     } catch (err) {
@@ -175,7 +173,6 @@ export default function RegisterPage() {
             autoComplete="email"
           />
 
-          {/* Password with show/hide */}
           <div className="relative">
             <input
               type={showPassword ? 'text' : 'password'}
@@ -200,10 +197,8 @@ export default function RegisterPage() {
             </button>
           </div>
 
-          {/* Strength meter */}
           {formData.password && <PasswordStrengthMeter password={formData.password} />}
 
-          {/* Policy checklist */}
           <div className="grid grid-cols-1 gap-1 text-xs text-text-secondary">
             <Req ok={checks.length}>At least 8 characters</Req>
             <Req ok={checks.upper}>Contains an uppercase letter (A-Z)</Req>

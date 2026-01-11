@@ -1,5 +1,3 @@
-// src/components/Notifications.js
-
 import { toast } from 'react-hot-toast';
 import Toast from '../components/ui/Toast';
 

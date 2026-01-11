@@ -1,15 +1,12 @@
-// src/components/DocumentPreviewModal.jsx
-
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence, useSpring } from 'framer-motion';
 import { X, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import Button from './ui/Button';
 
-// This is the final, self-contained, high-end preview modal.
+
 export default function DocumentPreviewModal({ isOpen, onClose, fileUrl }) {
   const [isDragging, setIsDragging] = useState(false);
 
-  // Use Framer Motion's spring animations for all transformations for a fluid feel
   const scale = useSpring(1, { stiffness: 400, damping: 40 });
   const x = useSpring(0, { stiffness: 400, damping: 40 });
   const y = useSpring(0, { stiffness: 400, damping: 40 });

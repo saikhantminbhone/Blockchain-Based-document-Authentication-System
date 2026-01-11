@@ -1,5 +1,3 @@
-// src/components/ShareModal.jsx
-
 import React from 'react';
 import Modal from './Modal';
 import { QRCodeSVG } from 'qrcode.react';

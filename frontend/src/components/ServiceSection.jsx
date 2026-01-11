@@ -1,5 +1,3 @@
-// src/components/ServicesSection.jsx
-
 import React from "react";
 import {
   UserCheck,
@@ -64,15 +62,12 @@ export default function ServicesSection() {
           {services.map((service, idx) => (
             <div
               key={idx}
-              // --- 1. Add 'group' to the card and remove the hover border ---
               className="group bg-card rounded-2xl p-8 text-left border border-text-muted/10 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl hover:shadow-primary/10"
             >
               <div className="flex items-center gap-4">
-                {/* --- 2. The icon's background and text color will now change on group-hover --- */}
                 <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors duration-300 group-hover:bg-primary group-hover:text-white">
                   {service.icon}
                 </div>
-                {/* --- 3. The title's text color will now change on group-hover --- */}
                 <h3 className="text-xl font-bold text-text-primary transition-colors duration-300 group-hover:text-accent">
                   {service.title}
                 </h3>

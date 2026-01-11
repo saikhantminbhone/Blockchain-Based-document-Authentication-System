@@ -1,5 +1,3 @@
-// src/components/FileUploader.jsx
-
 import React, { useState, useRef, useId } from 'react';
 import { UploadCloud, Camera, FileText, XCircle } from 'lucide-react';
 import { clsx } from 'clsx';

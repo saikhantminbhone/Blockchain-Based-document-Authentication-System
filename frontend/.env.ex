@@ -1,0 +1,4 @@
+VITE_REACT_APP_GOOGLE_CLIENT_ID=440665518803-07drncqnp3os9l57k9pmbt1vrkh2j9en.apps.googleusercontent.com
+# VITE_BACKEND_API_URL=https://blocklease.site/api
+VITE_BACKEND_API_URL=http://localhost:5001/api
+VITE_APP_WEB3FORMS_ACCESS_KEY=61e715a4-493d-45c8-a11b-2d85633671f4

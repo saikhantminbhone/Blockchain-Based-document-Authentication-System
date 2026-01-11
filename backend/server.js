@@ -34,7 +34,7 @@ const {
 
 // ------------------------------------------------------------------
 // App & Middleware
-// ------------------------------------------------------------------
+
 const app = express();
 app.use(cors({ origin: "*" }));
 
@@ -49,7 +49,6 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 // ------------------------------------------------------------------
 // Env
-// ------------------------------------------------------------------
 const {
   PORT,
   BASE_SMOY_RPC_URL,
@@ -69,7 +68,6 @@ const {
 
 // ------------------------------------------------------------------
 // Clients
-// ------------------------------------------------------------------
 const veriffApi = axios.create({
   baseURL: 'https://api.veriff.me/v1',
   headers: { 'Content-Type': 'application/json', 'X-AUTH-CLIENT': VERIFF_API_KEY },
@@ -96,7 +94,7 @@ const BRAND = {
   accent: '#3B82F6',
   success: '#059669',
   warning: '#D97706',
-  danger:  '#DC2626',
+  danger: '#DC2626',
   bg: '#F9FAFB',
   card: '#FFFFFF',
   text: '#111827',
@@ -104,9 +102,7 @@ const BRAND = {
   border: '#E5E7EB'
 };
 
-/**
- * Bulletproof single-element CTA with Outlook VML fallback.
- */
+
 function renderButton(href, label) {
   const bg = BRAND.primary;
   const safeHref = href || '#';
@@ -139,9 +135,7 @@ function renderButton(href, label) {
 }
 
 
-/**
- * Unified email shell.
- */
+
 function renderEmail({ title, intro, bodyHtml, button, footerNote }) {
   return `
   <!DOCTYPE html>
@@ -285,31 +279,29 @@ async function normalizeImageToPng(buffer, mimetype = '', originalname = '') {
   return { buffer, ext, contentType };
 }
 
-// ---- Canonical normalisation helpers (avoid hash drift due to casing/spacing) ----
 const normalise = (s) => (s ?? '')
   .toString()
   .trim()
   .replace(/\s+/g, ' ')
   .toLowerCase();
 
-/** Build the canonical fingerprint (lowercased) used for hashing */
 function buildCanonicalFingerprint({ landlord, tenant, unit, from, to, rent }) {
   return `Landlord: ${normalise(landlord)} | ` +
-         `Tenant: ${normalise(tenant)} | ` +
-         `Unit: ${normalise(unit)} | ` +
-         `From: ${(from ?? '').toString().trim()} | ` +
-         `To: ${(to ?? '').toString().trim()} | ` +
-         `Rent: ${(rent ?? '').toString().trim()}`;
+    `Tenant: ${normalise(tenant)} | ` +
+    `Unit: ${normalise(unit)} | ` +
+    `From: ${(from ?? '').toString().trim()} | ` +
+    `To: ${(to ?? '').toString().trim()} | ` +
+    `Rent: ${(rent ?? '').toString().trim()}`;
 }
 
 /** Build a display fingerprint (preserve case) */
 function buildDisplayFingerprint({ landlord, tenant, unit, from, to, rent }) {
   return `Landlord: ${(landlord ?? '').toString().trim()} | ` +
-         `Tenant: ${(tenant ?? '').toString().trim()} | ` +
-         `Unit: ${(unit ?? '').toString().trim()} | ` +
-         `From: ${(from ?? '').toString().trim()} | ` +
-         `To: ${(to ?? '').toString().trim()} | ` +
-         `Rent: ${(rent ?? '').toString().trim()}`;
+    `Tenant: ${(tenant ?? '').toString().trim()} | ` +
+    `Unit: ${(unit ?? '').toString().trim()} | ` +
+    `From: ${(from ?? '').toString().trim()} | ` +
+    `To: ${(to ?? '').toString().trim()} | ` +
+    `Rent: ${(rent ?? '').toString().trim()}`;
 }
 
 /** AI fingerprint parser */
@@ -887,23 +879,23 @@ app.post('/api/veriff/webhook', async (req, res) => {
 app.post('/api/units', authMiddleware, async (req, res) => {
   try {
     // 1. Extract JSON Body (No files here anymore)
-    const { 
-        unitNumber, 
-        floor, 
-        streetAddress, 
-        subdistrict, 
-        district, 
-        province, 
-        zipCode, 
-        country 
+    const {
+      unitNumber,
+      floor,
+      streetAddress,
+      subdistrict,
+      district,
+      province,
+      zipCode,
+      country
     } = req.body;
 
     // 2. Simple Validation
     if (!unitNumber || !streetAddress || !district || !province) {
-        return res.status(400).json({ 
-            status: 'error', 
-            message: 'Please fill in all required address fields.' 
-        });
+      return res.status(400).json({
+        status: 'error',
+        message: 'Please fill in all required address fields.'
+      });
     }
 
     // 3. Create Unit Object (Verified = False)
@@ -911,18 +903,18 @@ app.post('/api/units', authMiddleware, async (req, res) => {
       landlordId: req.landlordId,
       unitNumber,
       floor: floor || '',
-      address: { 
-          streetAddress, 
-          subdistrict: subdistrict || '', 
-          district, 
-          province, 
-          zipCode, 
-          country: country || 'Thailand' 
+      address: {
+        streetAddress,
+        subdistrict: subdistrict || '',
+        district,
+        province,
+        zipCode,
+        country: country || 'Thailand'
       },
       // Important: It starts as unverified
-      isVerified: false, 
-      verificationStatus: 'unverified', 
-      titleDeedS3Key: null, // Will be filled in the next step (Verify Modal)
+      isVerified: false,
+      verificationStatus: 'unverified',
+      titleDeedS3Key: null,
       createdAt: new Date()
     };
 
@@ -951,7 +943,7 @@ async function uploadFileToS3(fileBuffer, folder, originalname, mimetype = '') {
 
   const nameIsPdf = /\.pdf$/i.test(originalname) || contentType === 'application/pdf';
   const nameIsImage = /^image\//.test(contentType) ||
-                      /\.(heic|heif|jpg|jpeg|png|gif|webp|tif|tiff|bmp)$/i.test(originalname);
+    /\.(heic|heif|jpg|jpeg|png|gif|webp|tif|tiff|bmp)$/i.test(originalname);
 
   if (nameIsPdf) {
     ext = 'pdf';
@@ -1025,10 +1017,10 @@ app.post('/api/units/analyze-deed', authMiddleware, upload.single('deed'), async
     // AI compares it
     const verificationResult = await AiVerifyDeedMatch(extractedData, landlord.name, unit.address);
 
-    res.json({ 
-        status: 'success', 
-        extractedData,      
-        aiAnalysis: verificationResult 
+    res.json({
+      status: 'success',
+      extractedData,
+      aiAnalysis: verificationResult
     });
   } catch (error) {
     console.error(error);
@@ -1038,25 +1030,25 @@ app.post('/api/units/analyze-deed', authMiddleware, upload.single('deed'), async
 
 // Endpoint 2: CONFIRM (Write)
 app.post('/api/units/confirm-deed', authMiddleware, async (req, res) => {
-    try {
-        const { unitId, deedData } = req.body; // 'deedData' is the edited version from frontend
+  try {
+    const { unitId, deedData } = req.body; // 'deedData' is the edited version from frontend
 
-        await getDB().collection('units').updateOne(
-            { _id: new ObjectId(unitId) },
-            { 
-                $set: { 
-                    isVerified: true, 
-                    verificationStatus: 'verified',
-                    deedData: deedData, // Saving the USER CONFIRMED data
-                    verifiedAt: new Date()
-                } 
-            }
-        );
+    await getDB().collection('units').updateOne(
+      { _id: new ObjectId(unitId) },
+      {
+        $set: {
+          isVerified: true,
+          verificationStatus: 'verified',
+          deedData: deedData, // Saving the USER CONFIRMED data
+          verifiedAt: new Date()
+        }
+      }
+    );
 
-        res.json({ status: 'success', message: 'Unit verified successfully.' });
-    } catch (error) {
-        res.status(500).json({ status: 'error', message: 'Could not save verification.' });
-    }
+    res.json({ status: 'success', message: 'Unit verified successfully.' });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: 'Could not save verification.' });
+  }
 });
 
 app.post('/api/units/:unitId/verify', authMiddleware, upload.fields([
@@ -1204,7 +1196,6 @@ app.post('/api/contracts/initiate', upload.single('contract'), async (req, res) 
       kycStatus: 'approved',
     });
 
-    // Fallback: older records without nameSearch -> previous regex
     if (!landlord) {
       landlord = await landlordsColl.findOne({
         name: { $regex: `^${escapeRegex(fp.landlordName)}$`, $options: 'i' },
@@ -1287,26 +1278,24 @@ app.post('/api/contracts/initiate', upload.single('contract'), async (req, res) 
 
 app.post('/api/approve-and-create-unit', authMiddleware, async (req, res) => {
   try {
-    // 1. We now expect 'addressDetails' from the frontend (the user's corrections)
-    const { docHash, addressDetails } = req.body; 
+    const { docHash, addressDetails } = req.body;
 
-    const pending = await getDB().collection('pending_contracts').findOne({ 
-        docHash, 
-        assignedLandlordId: req.landlordId, 
-        unitStatus: 'unmatched' 
+    const pending = await getDB().collection('pending_contracts').findOne({
+      docHash,
+      assignedLandlordId: req.landlordId,
+      unitStatus: 'unmatched'
     });
 
     if (!pending) return res.status(404).json({ status: 'error', message: "No unmatched pending contract found." });
 
-    // 2. Validate essential fields (University projects love data validation)
     if (!addressDetails || !addressDetails.district || !addressDetails.province) {
-        return res.status(400).json({ status: 'error', message: "Incomplete address details provided." });
+      return res.status(400).json({ status: 'error', message: "Incomplete address details provided." });
     }
 
     const newUnit = {
       landlordId: req.landlordId,
-      unitNumber: addressDetails.unitNumber || pending.unmatchedUnitIdentifier.split(',')[0].trim(), 
-      floor: addressDetails.floor || '', 
+      unitNumber: addressDetails.unitNumber || pending.unmatchedUnitIdentifier.split(',')[0].trim(),
+      floor: addressDetails.floor || '',
       address: {
         streetAddress: addressDetails.streetAddress || '',
         subdistrict: addressDetails.subdistrict || '',
@@ -1321,15 +1310,15 @@ app.post('/api/approve-and-create-unit', authMiddleware, async (req, res) => {
     };
 
     const result = await getDB().collection('units').insertOne(newUnit);
-    
+
     await getDB().collection('pending_contracts').updateOne(
-        { _id: pending._id }, 
-        { $set: { unitId: result.insertedId, unitStatus: 'matched' } }
+      { _id: pending._id },
+      { $set: { unitId: result.insertedId, unitStatus: 'matched' } }
     );
 
-    res.status(200).json({ 
-        status: 'success', 
-        message: `Unit '${newUnit.unitNumber}' created. Please verify its title deed next.` 
+    res.status(200).json({
+      status: 'success',
+      message: `Unit '${newUnit.unitNumber}' created. Please verify its title deed next.`
     });
 
   } catch (error) {
@@ -1501,29 +1490,25 @@ app.post('/api/contracts/:docHash/terminate', authMiddleware, async (req, res) =
 // Verification Endpoints
 // ------------------------------------------------------------------
 
-/**
- * Upload a contract and verify against chain & DB.
- * Backward compatible: tries canonical (lowercased) hash first, then legacy mixed-case.
- */
+
 app.post('/api/verify-document', upload.single('contract'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ status: 'error', message: "Contract file is required." });
     }
 
-    // 1) Basic validation
     const validation = await AiclassifyDocument(req.file.buffer, req.file.mimetype);
     if (validation.type !== 'contract' || validation.confidence < 0.90) {
       console.log(validation)
       return res.status(400).json({ status: 'error', message: "Invalid Document: The file does not appear to be a rental contract." });
     }
 
-    // 2) AI scan -> fields (NOT forced lowercase)
+
     const initialFingerprint = await AiScanContract(req.file.buffer, req.file.mimetype);
     const initial = parseFingerprint(initialFingerprint); // landlordName, tenantName, unitInfo, from, to, rent
 
     const db = getDB();
-    const unitInfoRaw     = (initial.unitInfo || '').trim();
+    const unitInfoRaw = (initial.unitInfo || '').trim();
 
     // 3) Robust landlord match (case-insensitive, prefer approved)
     const landlordNameRaw = (initial.landlordName || '').trim();
@@ -1539,7 +1524,6 @@ app.post('/api/verify-document', upload.single('contract'), async (req, res) => 
         nameSearch: targetNameSearch,
       });
 
-    // Fallback for very old records without nameSearch
     if (!landlord) {
       landlord =
         await landlordsColl.findOne({
@@ -1556,7 +1540,6 @@ app.post('/api/verify-document', upload.single('contract'), async (req, res) => 
       return res.status(200).json({ verified: false, message: "Could not match landlord from the document." });
     }
 
-    // 4) Find a unit owned by this landlord (AI fuzzy → exact fallback)
     const units = await db.collection('units').find({
       landlordId: landlord._id,
       status: { $ne: 'archived' }
@@ -1596,14 +1579,13 @@ app.post('/api/verify-document', upload.single('contract'), async (req, res) => 
       return res.status(200).json({ verified: false, message: "Could not match unit from the document." });
     }
 
-    // 5) Build official unit info
     const street = matchedUnit.address?.streetAddress || '';
     const district = matchedUnit.address?.district || '';
     const officialUnitInfo =
       `${matchedUnit.floor ? `Floor ${matchedUnit.floor}, ` : ''}` +
       `${matchedUnit.unitNumber}, ${street}, ${district}`;
 
-    // --- A) Canonicalfingerprint + hash ---
+    // Canonicalfingerprint + hash ---
     const canonicalFingerprint = buildCanonicalFingerprint({
       landlord: landlord.name,
       tenant: initial.tenantName,
@@ -1614,7 +1596,6 @@ app.post('/api/verify-document', upload.single('contract'), async (req, res) => 
     });
     const canonicalDocHash = ethers.keccak256(ethers.toUtf8Bytes(canonicalFingerprint));
 
-    // --- B) Legacy (old) fingerprint + hash (no lowercasing) ---
     const legacyFingerprint = buildDisplayFingerprint({
       landlord: landlord.name,
       tenant: initial.tenantName,
@@ -1625,7 +1606,7 @@ app.post('/api/verify-document', upload.single('contract'), async (req, res) => 
     });
     const legacyDocHash = ethers.keccak256(ethers.toUtf8Bytes(legacyFingerprint));
 
-    // 6) On-chain check (first canonical, then legacy for backward compatibility)
+
     const tsCanonical = await contract.getDocumentTimestamp(canonicalDocHash);
     const isCanonical = tsCanonical && (typeof tsCanonical === 'bigint' ? tsCanonical > 0n : Number(tsCanonical) > 0);
 
@@ -1660,7 +1641,7 @@ app.post('/api/verify-document', upload.single('contract'), async (req, res) => 
 
     let documentUrl = null;
     if (isActive && approved?.contractS3Key) {
-      try { documentUrl = await getPresignedUrl(approved.contractS3Key); } catch (_) {}
+      try { documentUrl = await getPresignedUrl(approved.contractS3Key); } catch (_) { }
     }
 
     // 8) Response
@@ -1671,7 +1652,7 @@ app.post('/api/verify-document', upload.single('contract'), async (req, res) => 
         verifiedOn: new Date(Number(String(chosen.ts)) * 1000).toUTCString(),
         txHash: approved?.txHash || null
       },
-      documentUrl, // only when active
+      documentUrl,
       fingerprint: fingerprintOut,
       landlord: landlord.name,
       unit: officialUnitInfo,

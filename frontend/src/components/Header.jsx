@@ -32,9 +32,7 @@ export default function Header() {
           </NavLink>
         </div>
 
-        {/* Mobile Buttons & Menu Toggle */}
         <div className="flex items-center gap-2 lg:hidden">
-          {/* Show Register button if logged out */}
           {!isAuthenticated && (
             <NavLink
               to="/register"
@@ -44,7 +42,6 @@ export default function Header() {
             </NavLink>
           )}
 
-          {/* --- NEW: Show Logout button if logged in --- */}
           {isAuthenticated && (
             <button
               onClick={handleLogout}

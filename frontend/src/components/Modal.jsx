@@ -1,5 +1,3 @@
-// src/components/Modal.jsx
-
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
@@ -7,28 +5,23 @@ import { clsx } from 'clsx';
 
 export default function Modal({ isOpen, onClose, title, children, size = 'default' }) {
   
-  // --- UPGRADED useEffect for a professional-grade scroll lock ---
+
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') onClose();
     };
 
     if (isOpen) {
-      // 1. Get the original body styles to restore them later
       const originalOverflow = window.getComputedStyle(document.body).overflow;
       const originalPaddingRight = window.getComputedStyle(document.body).paddingRight;
 
-      // 2. Calculate the width of the browser's scrollbar
       const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-
-      // 3. Apply the lock: hide overflow AND add padding to prevent layout shift
       document.body.style.overflow = 'hidden';
       document.body.style.paddingRight = `${scrollbarWidth}px`;
       
       window.addEventListener('keydown', handleKeyDown);
     }
 
-    // 4. Cleanup: Restore the original styles when the modal closes
     return () => {
       document.body.style.overflow = 'unset'; // Use unset for better compatibility
       document.body.style.paddingRight = '0px';

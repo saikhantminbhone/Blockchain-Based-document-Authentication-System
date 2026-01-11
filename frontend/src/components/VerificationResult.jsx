@@ -1,5 +1,3 @@
-// src/components/VerificationResult.jsx
-
 import { CheckCircle2, XCircle, FileText } from 'lucide-react';
 
 export default function VerificationResult({ result }) {

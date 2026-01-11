@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { getLandlordDashboard, getPresignedUrl, approveAndCreateUnit } from '../services/api'; // Added approveAndCreateUnit
+import { getLandlordDashboard, getPresignedUrl, approveAndCreateUnit } from '../services/api'; 
 import { toast } from 'react-hot-toast';
 import AnalyticsDashboard from '../components/AnalyticsDashboard';
 import AddUnitModal from '../components/AddUnitModal';
-import ApproveUnitModal from '../components/ApproveUnitModal'; // <--- NEW IMPORT
+import ApproveUnitModal from '../components/ApproveUnitModal'; 
 import UnitListItem from '../components/UnitListItem';
 import VerifyDeedModal from '../components/VerifyDeedModal';
 import PendingContractItem from '../components/PendingContractItem';
@@ -24,8 +24,8 @@ export default function LandlordDashboardPage() {
   
   // Modals State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isApproveUnitModalOpen, setIsApproveUnitModalOpen] = useState(false); // <--- State for Approve Modal
-  const [contractToApprove, setContractToApprove] = useState(null); // <--- Selected Contract
+  const [isApproveUnitModalOpen, setIsApproveUnitModalOpen] = useState(false); 
+  const [contractToApprove, setContractToApprove] = useState(null); 
   
   const [unitToVerify, setUnitToVerify] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
@@ -53,7 +53,6 @@ export default function LandlordDashboardPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Helper: Expiration Check
   const isContractExpired = (contract) => {
     if (!contract || !contract.fingerprint) return false;
     try {
@@ -65,15 +64,12 @@ export default function LandlordDashboardPage() {
     } catch (e) { return false; }
   };
 
-  // --- Handlers ---
 
-  // 1. Open "Add Unit & Approve" Modal
   const handleOpenAddUnitModal = (contract) => {
     setContractToApprove(contract);
     setIsApproveUnitModalOpen(true);
   };
 
-  // 2. Submit "Add Unit & Approve"
   const handleConfirmCreateUnit = async (addressDetails) => {
     try {
       const result = await approveAndCreateUnit(contractToApprove.docHash, addressDetails);
@@ -112,7 +108,6 @@ export default function LandlordDashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-text-primary">Welcome, {landlord.name}</h1>
@@ -124,12 +119,10 @@ export default function LandlordDashboardPage() {
         </div>
       </div>
 
-      {/* Analytics */}
       {landlord.kycStatus === 'approved' && (
         <AnalyticsDashboard units={activeUnits} approvedContracts={approvedContracts} />
       )}
 
-      {/* Pending Contracts */}
       
       {pendingContracts && pendingContracts.length > 0 && (
         <Card>
@@ -148,7 +141,7 @@ export default function LandlordDashboardPage() {
                   onUpdate={fetchData} 
                   onPreviewClick={handleOpenPreview}
                   onVerifyClick={handleStartVerification}
-                  onAddUnitClick={handleOpenAddUnitModal} // <--- Pass Handler
+                  onAddUnitClick={handleOpenAddUnitModal} 
                 />
               );
             })}

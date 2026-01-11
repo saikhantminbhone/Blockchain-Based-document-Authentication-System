@@ -1,5 +1,3 @@
-// src/pages/VerificationPage.jsx
-
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getPublicVerificationData } from '../services/api';
@@ -72,7 +70,6 @@ export default function VerificationPage() {
             <div className={`relative w-full max-w-4xl mx-auto bg-card rounded-2xl shadow-2xl border border-text-muted/10 overflow-hidden ${isTerminated && 'opacity-70'}`}>
                 <img src="/assests/logo.png" alt="Watermark" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1/2 opacity-5 pointer-events-none" />
                 <div className="relative z-10 p-8 sm:p-12 space-y-8">
-                    {/* --- 1. The Verdict Header --- */}
                     <div className="text-center border-b border-text-muted/10 pb-8">
                         {isTerminated ? (
                             <>
@@ -89,7 +86,6 @@ export default function VerificationPage() {
                         )}
                     </div>
 
-                    {/* --- 2. The On-Chain Details Grid --- */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                         {Object.entries(fingerprintDetails).map(([key, value]) => (
                             <DetailItem key={key} label={key} value={value} className={key === 'Unit' ? 'sm:col-span-2' : ''} />
@@ -97,7 +93,6 @@ export default function VerificationPage() {
                         <DetailItem label="Verified On (Timestamp)" value={new Date(data.onChainDetails.verifiedOn).toLocaleString()} />
                     </div>
 
-                    {/* --- 3. Action Buttons --- */}
                     {!isTerminated && (
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                         <Button onClick={() => setIsPreviewOpen(true)} className="inline-flex items-center gap-2 w-full sm:w-auto">
@@ -111,7 +106,6 @@ export default function VerificationPage() {
                     
 
 
-                    {/* --- 4. The Blockchain Seal--- */}
                     <div className="mt-4 p-4 bg-background rounded-lg">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center text-sm font-semibold text-text-primary">

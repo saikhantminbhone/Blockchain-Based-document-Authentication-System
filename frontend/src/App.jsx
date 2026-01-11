@@ -1,5 +1,3 @@
-// src/App.jsx (Corrected)
-
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext.jsx';
 import Header from './components/Header';
@@ -28,7 +26,6 @@ function App() {
     <AuthProvider>
       <Router>
        <Toaster position="top-right" />
-        {/* This is the main grid container */}
         <div className="grid grid-rows-[auto_1fr_auto] min-h-screen bg-background">
           <Header />
           <main className="container mx-auto px-4 py-6">

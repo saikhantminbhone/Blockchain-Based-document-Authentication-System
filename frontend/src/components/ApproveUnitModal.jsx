@@ -36,7 +36,6 @@ export default function ApproveUnitModal({ isOpen, onClose, onConfirm, pendingCo
   // Pre-fill logic
   useEffect(() => {
     if (pendingContract && isOpen) {
-      // We try to intelligently split the detected address into the form
       // Example: "22/7, Condo One, Sukhumvit 71"
       const rawString = pendingContract.unmatchedUnitIdentifier || '';
       const parts = rawString.split(',');

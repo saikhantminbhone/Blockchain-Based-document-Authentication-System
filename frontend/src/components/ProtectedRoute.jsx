@@ -1,5 +1,3 @@
-// src/components/ProtectedRoute.jsx (Final version for the prop-based pattern)
-
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';

@@ -1,11 +1,9 @@
-// src/pages/AboutPage.jsx
-
 import React from 'react';
 import { motion } from 'framer-motion';
 import { ShieldCheck, Cpu, Box, Zap, Eye, Linkedin, Github } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-// Data for the "Our Story" timeline
+
 const story = [
   {
     icon: <div className="font-bold text-lg">1</div>,
@@ -24,7 +22,6 @@ const story = [
   }
 ];
 
-// Data for the "Core Principles" section
 const principles = [
     { icon: <ShieldCheck/>, title: "Ironclad Security", text: "Leveraging professional KYC, multi-document AI checks, and blockchain immutability to secure every step." },
     { icon: <Eye/>, title: "Radical Transparency", text: "Providing a public, verifiable record for every approved contract that anyone can check, anytime." },
@@ -39,7 +36,7 @@ export default function AboutPage() {
 
   return (
     <div className="bg-background text-text-primary">
-      {/* --- Dynamic Hero with Gradient Glows --- */}
+
       <div className="relative h-[60vh] flex items-center justify-center text-center text-white overflow-hidden">
         <div className="absolute inset-0 bg-footer"></div>
         <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-gradient-to-r from-primary/50 to-accent/50 rounded-full blur-3xl animate-float opacity-40"></div>
@@ -57,7 +54,6 @@ export default function AboutPage() {
         </motion.div>
       </div>
 
-      {/* --- Main Content Section --- */}
       <div className="max-w-4xl mx-auto py-20 px-4 space-y-24">
         
         {/* "Our Story" Timeline Section */}

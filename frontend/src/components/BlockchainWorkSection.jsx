@@ -1,8 +1,6 @@
-// src/components/BlockchainWorkSection.jsx
-
 import React from 'react';
 import { FileText, Fingerprint, LockKeyhole, Link, Search } from 'lucide-react';
-import Card from './ui/Card'; // Assuming your Card component is reusable
+import Card from './ui/Card'; 
 
 export default function BlockchainWorkSection() {
   return (

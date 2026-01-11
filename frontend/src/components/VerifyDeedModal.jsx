@@ -1,4 +1,3 @@
-// src/components/VerifyDeedModal.jsx
 import React, { useState, useEffect } from 'react';
 import Button from './ui/Button';
 import { Upload, CheckCircle, AlertTriangle, X, FileSearch, ShieldCheck, Edit2 } from 'lucide-react';

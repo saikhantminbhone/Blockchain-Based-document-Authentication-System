@@ -15,8 +15,6 @@ export default function PendingContractItem({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // 1. Parse Fingerprint first so we can use it in the title
-  // We check all possible fingerprint fields to be safe
   const fingerprintRaw = contract.fingerprintDisplay || contract.fingerprintCanonical || contract.fingerprint || '';
   
   const contractDetails = fingerprintRaw.split('|').reduce((acc, part) => {
@@ -24,12 +22,6 @@ export default function PendingContractItem({
     if (key && value) acc[key.trim()] = value.trim();
     return acc;
   }, {});
-
-  // 2. LOGIC: Best Possible Title Display
-  // Priority 1: The real Unit Number (if matched)
-  // Priority 2: The "Unit" field from the AI Fingerprint (Cleanest)
-  // Priority 3: The raw identifier from the database (Fallback)
-  // Priority 4: "New Property" (Last resort)
   const displayTitle = unit?.unitNumber 
     ? `Unit ${unit.unitNumber}` 
     : (contractDetails.Unit || contract.unmatchedUnitIdentifier || "New Property");
@@ -53,13 +45,12 @@ export default function PendingContractItem({
 
   return (
     <div className="p-4 border rounded-lg bg-card shadow-sm border-border space-y-3">
-      {/* Header: Shows the Smart Address */}
+
       <div className="flex items-center text-sm font-semibold text-text-primary">
         <FileText className="w-4 h-4 mr-2 text-primary" />
         <span>Contract for: <span className="text-primary ml-1 font-bold break-all">{displayTitle}</span></span>
       </div>
 
-      {/* Contract Details */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 text-sm text-text-secondary bg-background/50 p-3 rounded-md">
         <p><strong>Tenant:</strong> {contractDetails.Tenant || 'N/A'}</p>
         <p><strong>Rent:</strong> {contractDetails.Rent || 'N/A'}</p>
@@ -67,7 +58,7 @@ export default function PendingContractItem({
         <p><strong>To:</strong> {contractDetails.To || 'N/A'}</p>
       </div>
       
-      {/* Warning for New/Unmatched Unit */}
+
       {contract.unitStatus === 'unmatched' && (
         <div className="flex items-start text-sm text-info bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 p-3 rounded-md border border-blue-100 dark:border-blue-800">
             <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0 mt-0.5" />

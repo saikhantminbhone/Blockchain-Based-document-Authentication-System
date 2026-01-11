@@ -1,11 +1,9 @@
-// src/pages/BlogPage.jsx
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import { ArrowRight } from 'lucide-react';
 
-// Sample blog post data - Added one more for a better layout
+//fake data for testing purpose only
 const articles = [
   {
     category: 'Blockchain',
@@ -45,7 +43,6 @@ const articles = [
   },
 ];
 
-// Separate the articles for the new layout
 const featuredArticle = articles[0];
 const otherArticles = articles.slice(1);
 
@@ -53,7 +50,7 @@ const otherArticles = articles.slice(1);
 export default function BlogPage() {
   return (
     <div className="max-w-7xl mx-auto py-12 px-4 animate-fade-in">
-      {/* --- Header --- */}
+
       <div className="text-center mb-16">
         <h1 className="text-4xl md:text-5xl font-extrabold text-text-secondary">Insights & News</h1>
         <p className="mt-4 text-lg text-text-secondary max-w-2xl mx-auto">
@@ -61,7 +58,6 @@ export default function BlogPage() {
         </p>
       </div>
       
-      {/* --- NEW: Featured Article Section --- */}
       <section className="mb-16">
         <Link to={featuredArticle.href} className="group block">
             <Card className="p-0 grid grid-cols-1 lg:grid-cols-2 overflow-hidden">
@@ -89,7 +85,6 @@ export default function BlogPage() {
         </Link>
       </section>
 
-      {/* --- More Articles Grid --- */}
       <section>
         <h2 className="text-3xl font-bold text-text-primary mb-8">More Articles</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">

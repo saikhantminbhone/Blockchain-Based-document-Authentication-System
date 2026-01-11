@@ -16,11 +16,9 @@ export default function UnitListItem({
     const [isExpanded, setIsExpanded] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
-    // Sort: Newest first
     const sortedContracts = contracts ? [...contracts].sort((a, b) => new Date(b.approvedOn) - new Date(a.approvedOn)) : [];
     const latestContract = sortedContracts.length > 0 ? sortedContracts[0] : null;
 
-    // Helper: Parse contract details for ANY contract, not just the latest
     const getContractDetails = (fingerprint) => {
         if (!fingerprint) return {};
         return fingerprint.split('|').reduce((acc, part) => {

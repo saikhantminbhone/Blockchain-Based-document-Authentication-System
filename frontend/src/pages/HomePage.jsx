@@ -1,5 +1,3 @@
-// src/pages/HomePage.jsx
-
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import FileUploader from '../components/FileUploader';
@@ -120,7 +118,7 @@ export default function HomePage() {
       case 'result':
         if (!result) return null;
 
-        // --- THIS IS THE FIX: A new, dedicated view for AI validation errors ---
+
         if (result.isError) {
             return (
                 <div className="text-center p-6 space-y-4">

@@ -1,9 +1,7 @@
-// src/pages/KycPage.jsx (Full & Final Code for Veriff)
-
 import React, { useState } from 'react';
 import { createVeriffSession } from '../services/api';
-import Button from '../components/ui/Button'; // Assuming you have a reusable Button component
-import Card from '../components/ui/Card';   // Assuming a reusable Card component
+import Button from '../components/ui/Button'; 
+import Card from '../components/ui/Card'; 
 
 export default function KycPage() {
   const [isLoading, setIsLoading] = useState(false);

@@ -1,5 +1,3 @@
-// src/pages/ProductPage.jsx
-
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
@@ -61,7 +59,7 @@ export default function ProductPage() {
 
   return (
     <div className="space-y-24 md:space-y-32">
-      {/* --- Hero Section --- */}
+
       <section className="text-center pt-10 pb-16">
         <h1 className="text-4xl md:text-6xl font-extrabold text-text-secondary mb-4">
           The Platform for Verifiable Agreements
@@ -71,7 +69,6 @@ export default function ProductPage() {
         </p>
       </section>
 
-      {/* --- Solutions (Tabs) Section --- */}
       <section className="max-w-7xl mx-auto">
         <div className="flex justify-center border-b border-text-muted/20 mb-12">
           {Object.keys(solutions).map(key => (
@@ -113,7 +110,6 @@ export default function ProductPage() {
         </AnimatePresence>
       </section>
 
-      {/* --- NEW Technology Stack Section --- */}
       <section className="max-w-5xl mx-auto text-center">
          <h2 className="text-3xl font-bold text-text-primary mb-12">Powered by a Modern, Secure Stack</h2>
          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
@@ -127,7 +123,6 @@ export default function ProductPage() {
          </div>
       </section>
 
-      {/* --- Final CTA Section --- */}
       <div className="relative mt-24 bg-card p-8 sm:p-12 rounded-2xl shadow-xl border border-text-muted/10 overflow-hidden">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
             <div className="text-center lg:text-left">

@@ -1,5 +1,3 @@
-// src/components/TestimonialsSection.jsx
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import Card from './ui/Card';
@@ -38,7 +36,7 @@ export default function TestimonialsSection() {
     <section className="bg-background py-10 px-4 sm:px-8 lg:px-16">
       <div className="max-w-7xl mx-auto">
         
-        {/* --- 1. CALL TO ACTION (MOVED TO THE TOP) --- */}
+
         <div className="relative bg-card p-8 sm:p-12 rounded-2xl shadow-xl border border-text-muted/10 overflow-hidden">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
             
@@ -52,7 +50,7 @@ export default function TestimonialsSection() {
               </p>
             </div>
 
-            {/* Right Column: Button & Decorative Icon */}
+
             <div className="relative flex items-center justify-center p-6">
               <ShieldCheck className="absolute w-48 h-48 text-primary opacity-5 -rotate-12" />
               <Link to="/register" className="relative z-10">
@@ -68,7 +66,7 @@ export default function TestimonialsSection() {
           </div>
         </div>
         
-        {/* --- 2. SECTION HEADER (MOVED HERE) --- */}
+
         <div className="text-center mt-24 mb-16">
           <h2 className="text-3xl md:text-4xl font-extrabold text-text-primary mb-4">
             Trusted in Bangkok
@@ -78,7 +76,6 @@ export default function TestimonialsSection() {
           </p>
         </div>
 
-        {/* --- 3. TESTIMONIALS (MOVED TO THE BOTTOM) --- */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:flex lg:overflow-x-auto lg:space-x-8 gap-8 pb-8">
           {testimonials.map((testimonial, index) => (
             <Card key={index} className="flex flex-col lg:flex-shrink-0 lg:w-[450px]">
